@@ -1,3 +1,4 @@
+pub use acelus_meta::loader::LoaderKind;
 use serde::{Deserialize, Serialize};
 
 pub const LOCK_VERSION: u32 = 1;
@@ -23,15 +24,6 @@ impl Role {
     pub fn is_shared(self) -> bool {
         !matches!(self, Role::Override)
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LoaderKind {
-    Fabric,
-    Quilt,
-    NeoForge,
-    Forge,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -243,8 +235,8 @@ mod tests {
         );
         assert_eq!(serde_json::to_string(&Role::Client).unwrap(), "\"client\"");
         assert_eq!(
-            serde_json::to_string(&LoaderKind::NeoForge).unwrap(),
-            "\"neoforge\""
+            serde_json::to_string(&LoaderKind::Fabric).unwrap(),
+            "\"fabric\""
         );
     }
 

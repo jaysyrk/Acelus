@@ -198,6 +198,7 @@ impl Resolver {
         let java = self.plan_java(version, env).await?;
 
         Ok(Plan {
+            loader: None,
             minecraft: LockMinecraft {
                 id: version.id.clone(),
                 release_type: release_type_name(version).to_string(),

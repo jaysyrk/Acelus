@@ -22,7 +22,8 @@ usage:
   acelus accounts forget <uuid>      sign out and erase stored credentials
   acelus versions [--all] [--limit n]
                                      list published Minecraft versions
-  acelus create <name> <version>     create an instance
+  acelus create <name> <version> [--fabric[=version]] [--quilt[=version]]
+                                     create an instance
   acelus instances                   list instances
   acelus install <instance>          download and verify everything it needs
   acelus verify <instance>           check an installed instance against its lockfile
@@ -279,14 +280,22 @@ func create(client *rpc.Client, args []string) error {
 		return err
 	}
 
+	params := map[string]any{"name": name, "version": wanted}
+	loader, err := loaderSpec(args)
+	if err != nil {
+		return err
+	}
+	if loader != nil {
+		params["loader"] = loader
+	}
+
 	var created struct {
 		Instance struct {
 			ID   string `json:"id"`
 			Path string `json:"path"`
 		} `json:"instance"`
 	}
-	if err := client.Call("instance.create",
-		map[string]any{"name": name, "version": wanted}, &created); err != nil {
+	if err := client.Call("instance.create", params, &created); err != nil {
 		return err
 	}
 
@@ -302,6 +311,10 @@ func instances(client *rpc.Client) error {
 			Version   string `json:"version"`
 			Installed bool   `json:"installed"`
 			Path      string `json:"path"`
+			Loader    *struct {
+				Kind    string `json:"kind"`
+				Version string `json:"version"`
+			} `json:"loader"`
 		} `json:"instances"`
 	}
 	if err := client.Call("instance.list", nil, &listing); err != nil {
@@ -314,13 +327,20 @@ func instances(client *rpc.Client) error {
 	}
 
 	writer := table()
-	fmt.Fprintln(writer, "INSTANCE\tVERSION\tSTATE")
+	fmt.Fprintln(writer, "INSTANCE\tVERSION\tLOADER\tSTATE")
 	for _, instance := range listing.Instances {
 		state := "not installed"
 		if instance.Installed {
 			state = "installed"
 		}
-		fmt.Fprintf(writer, "%s\t%s\t%s\n", instance.ID, instance.Version, state)
+		loader := "vanilla"
+		if instance.Loader != nil {
+			loader = instance.Loader.Kind
+			if instance.Loader.Version != "" {
+				loader += " " + instance.Loader.Version
+			}
+		}
+		fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", instance.ID, instance.Version, loader, state)
 	}
 	return writer.Flush()
 }
@@ -495,6 +515,37 @@ func contains(args []string, flag string) bool {
 		}
 	}
 	return false
+}
+
+func loaderSpec(args []string) (map[string]any, error) {
+	var chosen map[string]any
+	for _, kind := range []string{"fabric", "quilt"} {
+		flag := "--" + kind
+		version, requested := pinnedFlag(args, flag)
+		if !requested {
+			continue
+		}
+		if chosen != nil {
+			return nil, fmt.Errorf("an instance takes one mod loader, not both")
+		}
+		chosen = map[string]any{"kind": kind}
+		if version != "" {
+			chosen["version"] = version
+		}
+	}
+	return chosen, nil
+}
+
+func pinnedFlag(args []string, flag string) (string, bool) {
+	for _, arg := range args {
+		if arg == flag {
+			return "", true
+		}
+		if after, found := strings.CutPrefix(arg, flag+"="); found {
+			return after, true
+		}
+	}
+	return "", false
 }
 
 func flagValue(args []string, flag string) (string, bool) {

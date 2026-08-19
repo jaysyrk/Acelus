@@ -170,7 +170,7 @@ impl Installer {
             lock_version: LOCK_VERSION,
             generated_by: Some(format!("acelus {}", env!("CARGO_PKG_VERSION"))),
             minecraft: plan.minecraft.clone(),
-            loader: None,
+            loader: plan.loader.clone(),
             java: crate::lock::LockJava {
                 component: plan.java.component.clone(),
                 major_version: plan.java.major_version,

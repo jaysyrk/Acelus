@@ -7,7 +7,7 @@ use acelus_auth::{Account, Authenticator, MicrosoftClient, MinecraftClient, Secr
 use acelus_cas::Store;
 use acelus_instance::descriptor::Instances;
 use acelus_instance::java::JavaProvisioner;
-use acelus_instance::{Installer, Paths, Resolver};
+use acelus_instance::{Installer, LoaderResolver, Paths, Resolver};
 use acelus_launch::Session;
 use acelus_meta::Environment;
 use acelus_net::Fetcher;
@@ -19,6 +19,7 @@ pub struct Daemon {
     pub paths: Paths,
     pub environment: Environment,
     pub resolver: Resolver,
+    pub loaders: LoaderResolver,
     pub installer: Installer,
     pub java: JavaProvisioner,
     pub instances: Instances,
@@ -46,6 +47,7 @@ impl Daemon {
         Ok(Arc::new(Self {
             environment: Environment::current(),
             resolver: Resolver::new(fetcher.clone()),
+            loaders: LoaderResolver::new(fetcher.clone()),
             installer: Installer::new(fetcher.clone(), store, paths.clone()),
             java: JavaProvisioner::new(fetcher.clone(), paths.clone()),
             instances: Instances::new(paths.clone()),

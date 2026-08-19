@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use acelus_auth::store::now_seconds;
 use acelus_instance::lock::Lockfile;
-use acelus_instance::{InstanceLayout, Progress, Role};
+use acelus_instance::{InstanceLayout, LoaderRequest, Progress, Role};
 use acelus_launch::invocation::{self, LaunchRequest, MemorySettings, QuickPlay};
 use acelus_launch::session::DEFAULT_LOG_CAPACITY;
 use acelus_launch::Session;
@@ -50,6 +50,8 @@ struct VersionListParams {
 struct CreateParams {
     name: String,
     version: String,
+    #[serde(default)]
+    loader: Option<LoaderRequest>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -175,7 +177,7 @@ impl Rpc {
         let descriptor = self
             .daemon
             .instances
-            .create(&request.name, &request.version)
+            .create(&request.name, &request.version, request.loader)
             .map_err(|error| match error {
                 acelus_instance::descriptor::Error::AlreadyExists { .. } => {
                     RpcError::new(codes::ALREADY_EXISTS, error.to_string())
@@ -217,6 +219,7 @@ impl Rpc {
             "name": descriptor.name,
             "version": descriptor.version,
             "path": layout.root().display().to_string(),
+            "loader": descriptor.loader,
             "installed": layout.lockfile().is_file(),
             "lastPlayed": descriptor.last_played,
         })
@@ -226,12 +229,27 @@ impl Rpc {
         let descriptor = self.daemon.instances.get(&request.id).map_err(not_found)?;
         let layout = self.daemon.instances.layout(&descriptor.id);
 
-        let plan = self
+        let mut plan = self
             .daemon
             .resolver
             .resolve(&descriptor.version, &self.daemon.environment)
             .await
             .map_err(|error| RpcError::new(codes::NETWORK, error.to_string()))?;
+
+        if let Some(request) = descriptor.loader.as_ref() {
+            let profile = self
+                .daemon
+                .loaders
+                .resolve(request, &descriptor.version)
+                .await
+                .map_err(|error| RpcError::new(codes::NETWORK, error.to_string()))?;
+
+            self.daemon
+                .loaders
+                .apply(&mut plan, &profile)
+                .await
+                .map_err(|error| RpcError::new(codes::NETWORK, error.to_string()))?;
+        }
 
         let report = |progress: &Progress| {
             notifier.notify(

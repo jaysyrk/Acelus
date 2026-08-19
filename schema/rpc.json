@@ -274,7 +274,7 @@
       "type": "object",
       "required": ["kind"],
       "properties": {
-        "kind": { "enum": ["fabric", "quilt", "neoforge", "forge"] },
+        "kind": { "enum": ["fabric", "quilt"] },
         "version": { "description": "Omit to take the latest stable build for the target Minecraft version.", "type": "string" }
       }
     },

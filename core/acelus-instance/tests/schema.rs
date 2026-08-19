@@ -94,12 +94,7 @@ fn every_role_the_code_can_emit_is_accepted_by_the_schema() {
 
 #[test]
 fn every_loader_the_code_can_emit_is_accepted_by_the_schema() {
-    for kind in [
-        LoaderKind::Fabric,
-        LoaderKind::Quilt,
-        LoaderKind::NeoForge,
-        LoaderKind::Forge,
-    ] {
+    for kind in [LoaderKind::Fabric, LoaderKind::Quilt] {
         let mut lockfile = minimal();
         lockfile.loader = Some(LockLoader {
             kind,

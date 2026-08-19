@@ -10,6 +10,8 @@ your crash logs with more respect than the alternatives.
 
 The command line launcher works end to end. It resolves a version from Mojang, downloads and
 verifies every file, provisions the matching Java runtime, and starts the game under supervision.
+Fabric and Quilt instances are resolved from the loaders' own metadata and merged into the same
+lockfile.
 
 Signing in additionally needs an Azure application approved by Mojang — see
 [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md). Everything up to and including install works without one.
@@ -19,6 +21,14 @@ acelus create Survival 1.21.11
 acelus install survival
 acelus login
 acelus launch survival
+```
+
+For a modded instance, name the loader when creating it. Bare takes the newest build published for
+that Minecraft version; `=` pins one.
+
+```
+acelus create Modded 1.21.11 --fabric
+acelus create Pinned 1.21.11 --quilt=0.29.2
 ```
 
 Measured against Mojang on 1.12.2, on one machine:
@@ -109,7 +119,8 @@ graphical client cannot drift apart.
 
 - **Phase 0** — repository, toolchains, schemas, CI — *done*
 - **Phase 1** — Microsoft auth, vanilla download and verify, launching from the command line — *done*
-- **Phase 2** — Fabric, Quilt, NeoForge, Forge; Modrinth and CurseForge; modpack import and export
+- **Phase 2** — Fabric and Quilt — *done*; NeoForge and Forge; Modrinth and CurseForge; modpack
+  import and export
 - **Phase 3** — desktop application
 - **Phase 4** — crash diagnosis, sandboxing, instance sync
 - **Phase 5** — signed and notarized packages, auto-update

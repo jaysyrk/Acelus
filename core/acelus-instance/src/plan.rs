@@ -1,7 +1,7 @@
 use acelus_meta::arguments::ResolvedArguments;
 use acelus_meta::assets::AssetIndex;
 
-use crate::lock::{JavaSource, LockMinecraft, Role};
+use crate::lock::{JavaSource, LockLoader, LockMinecraft, Role};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlannedArtifact {
@@ -63,6 +63,7 @@ pub struct PlannedJava {
 #[derive(Debug, Clone)]
 pub struct Plan {
     pub minecraft: LockMinecraft,
+    pub loader: Option<LockLoader>,
     pub java: PlannedJava,
     pub artifacts: Vec<PlannedArtifact>,
     pub arguments: ResolvedArguments,

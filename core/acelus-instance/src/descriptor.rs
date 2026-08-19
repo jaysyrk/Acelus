@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::lock::LockLoader;
+use crate::loader::LoaderRequest;
 use crate::paths::{InstanceLayout, Paths};
 
 #[derive(Debug, thiserror::Error)]
@@ -40,7 +40,7 @@ pub struct Descriptor {
     pub name: String,
     pub version: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub loader: Option<LockLoader>,
+    pub loader: Option<LoaderRequest>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub last_played: Option<u64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -60,6 +60,11 @@ impl Descriptor {
             memory_megabytes: None,
             extra_jvm_arguments: Vec::new(),
         }
+    }
+
+    pub fn with_loader(mut self, loader: Option<LoaderRequest>) -> Self {
+        self.loader = loader;
+        self
     }
 }
 
@@ -134,7 +139,12 @@ impl Instances {
         self.layout(id).descriptor().is_file()
     }
 
-    pub fn create(&self, name: &str, version: &str) -> Result<Descriptor> {
+    pub fn create(
+        &self,
+        name: &str,
+        version: &str,
+        loader: Option<LoaderRequest>,
+    ) -> Result<Descriptor> {
         let id = sanitise_id(name).ok_or_else(|| Error::InvalidName {
             name: name.to_string(),
         })?;
@@ -149,7 +159,7 @@ impl Instances {
             source,
         })?;
 
-        let descriptor = Descriptor::new(&id, name, version);
+        let descriptor = Descriptor::new(&id, name, version).with_loader(loader);
         self.save(&descriptor)?;
         Ok(descriptor)
     }
