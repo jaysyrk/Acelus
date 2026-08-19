@@ -22,6 +22,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
       - uses: Swatinem/rust-cache@v2
       - name: Install Linux keyring dependencies
         if: runner.os == 'Linux'
