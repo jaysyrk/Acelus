@@ -7,11 +7,34 @@ requires an Azure application that Mojang has explicitly approved. Until approva
 Approval takes days, and up to a further 24 hours to propagate. **Start this before writing any
 auth code.**
 
-Registering is free. It does not need a paid Azure subscription.
+## 0. You need a directory before you can register anything
+
+App registrations live in a directory, and a personal Microsoft account does not come with one.
+Signing in to the portal with one puts you in a restricted system tenant named **Microsoft
+Services**, which has no directory attached. Attempting to register there fails with:
+
+> Selected user account does not exist in tenant 'Microsoft Services' and cannot access the
+> application 'c44b4083-3bb0-49c1-b47d-974e53cbdf3c' in that tenant.
+
+That application id is the Azure portal itself, not anything you created. The message means the
+sign-in never reached a usable directory.
+
+Two ways to get one:
+
+- **A work or school account**, if you have one. It already belongs to a real directory, so there
+  is nothing to create. Administrators can switch off app registration for ordinary users, so this
+  either works immediately or refuses immediately.
+- **An [Azure free account](https://azure.microsoft.com/free)**, which creates a directory and
+  makes you its Global Administrator. App registration itself costs nothing on the Entra ID Free
+  tier, but signing up **requires a credit card for identity verification**. Microsoft states the
+  card is not charged for the free tier.
+
+Creating a bare tenant from the Entra admin center instead is not an option here: Microsoft
+restricts *Manage tenants* > *Create* to paid customers.
 
 ## 1. Register the application
 
-1. Sign in to <https://portal.azure.com>.
+1. Sign in to <https://portal.azure.com> with an account that has a directory, per step 0.
 2. Search **App registrations** in the bar at the top and open it.
 3. Click **+ New registration**.
 4. **Name**: anything. `Acelus` will do.
