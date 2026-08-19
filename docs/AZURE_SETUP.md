@@ -43,9 +43,21 @@ New ones are not.
 
 The client ID is configuration, never a compile-time constant. Acelus reads it in this order:
 
-1. `ACELUS_CLIENT_ID` environment variable
-2. `client_id` in `$XDG_CONFIG_HOME/acelus/config.toml`
-3. The built-in default used by official Acelus releases
+1. `ACELUS_CLIENT_ID` in the daemon's environment
+2. `client_id` in `$XDG_CONFIG_HOME/acelus/config.toml`, which on Linux means
+   `~/.config/acelus/config.toml`
+
+There is no built-in default. Acelus ships without a client ID, because an approved application
+belongs to whoever registered it, and baking one in would hand every user's logins to that
+registration.
+
+```toml
+client_id = "00000000-1111-2222-3333-444444444444"
+```
+
+Prefer the file. The daemon is the process that reads the client ID, and it outlives the shell
+that started it, so a `ACELUS_CLIENT_ID` exported in one terminal is invisible to a daemon already
+running from another. A malformed config is logged and ignored rather than being fatal.
 
 This means the auth chain can be developed and tested in full before approval arrives, and anyone
 forking Acelus can drop in their own approved application without patching source.

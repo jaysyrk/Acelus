@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use acelus_auth::store::{now_seconds, AccountStore, StoredAccount};
@@ -11,6 +12,7 @@ use acelus_instance::{Installer, LoaderResolver, Paths, Resolver};
 use acelus_launch::Session;
 use acelus_meta::Environment;
 use acelus_net::Fetcher;
+use serde::Deserialize;
 use tokio::sync::Mutex;
 
 pub const DEFAULT_CLIENT_ID_ENV: &str = "ACELUS_CLIENT_ID";
@@ -149,15 +151,76 @@ impl AccountProblem {
     }
 }
 
+#[derive(Debug, Default, Deserialize)]
+pub struct Config {
+    #[serde(default)]
+    pub client_id: Option<String>,
+}
+
+pub fn config_path() -> Option<PathBuf> {
+    dirs::config_dir().map(|dir| dir.join("acelus").join("config.toml"))
+}
+
+pub fn read_config(path: &Path) -> Config {
+    let Ok(text) = std::fs::read_to_string(path) else {
+        return Config::default();
+    };
+
+    match toml::from_str(&text) {
+        Ok(config) => config,
+        Err(error) => {
+            tracing::warn!(path = %path.display(), %error, "ignoring unreadable config");
+            Config::default()
+        }
+    }
+}
+
 pub fn client_id() -> Option<String> {
-    std::env::var(DEFAULT_CLIENT_ID_ENV)
-        .ok()
-        .filter(|value| !value.trim().is_empty())
+    let from_env = std::env::var(DEFAULT_CLIENT_ID_ENV).ok();
+    let from_file = config_path()
+        .map(|path| read_config(&path))
+        .and_then(|c| c.client_id);
+
+    from_env
+        .or(from_file)
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_client_id_is_read_out_of_the_config_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(
+            &path,
+            "client_id = \"00000000-1111-2222-3333-444444444444\"\n",
+        )
+        .unwrap();
+
+        assert_eq!(
+            read_config(&path).client_id.as_deref(),
+            Some("00000000-1111-2222-3333-444444444444")
+        );
+    }
+
+    #[test]
+    fn a_missing_or_broken_config_is_not_fatal() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let absent = dir.path().join("nothing.toml");
+        assert!(read_config(&absent).client_id.is_none());
+
+        let broken = dir.path().join("broken.toml");
+        std::fs::write(&broken, "client_id = [unclosed").unwrap();
+        assert!(
+            read_config(&broken).client_id.is_none(),
+            "a typo in the config must not stop the daemon from starting"
+        );
+    }
 
     #[test]
     fn every_account_problem_explains_itself_and_names_the_remedy() {
