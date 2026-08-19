@@ -64,6 +64,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 wiremock = "0.6"
+jsonschema = "0.30"
 rsa = "0.9"
 rand = "0.8"
 

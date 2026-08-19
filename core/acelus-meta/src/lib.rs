@@ -1,4 +1,5 @@
 pub mod arguments;
+pub mod assets;
 pub mod java;
 pub mod manifest;
 pub mod rules;
@@ -7,6 +8,7 @@ pub mod version;
 pub use arguments::{
     substitute, Argument, ResolvedArguments, Substitutions, UnresolvedPlaceholders,
 };
+pub use assets::{AssetIndex, AssetObject};
 pub use java::{Platform, RuntimeFiles, RuntimeManifest};
 pub use manifest::{VersionManifest, VersionSummary};
 pub use rules::{evaluate, Action, Arch, Environment, Features, Os, Rule};
