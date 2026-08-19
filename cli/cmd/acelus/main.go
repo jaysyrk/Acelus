@@ -52,6 +52,8 @@ func run(command string, args []string) error {
 	switch command {
 	case "version", "--version", "-v":
 		fmt.Printf("acelus %s\n", version)
+		fmt.Println("Copyright (C) 2026 jaysyrk")
+		fmt.Println("GPL-3.0-or-later. This program comes with ABSOLUTELY NO WARRANTY.")
 		return nil
 	case "help", "--help", "-h":
 		fmt.Print(usage)

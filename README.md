@@ -134,4 +134,13 @@ graphical client cannot drift apart.
 
 ## Licence
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+Copyright © 2026 jaysyrk.
+
+Acelus is free software: you can redistribute it and/or modify it under the terms of the GNU
+General Public License as published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version. It is distributed in the hope that it will be
+useful, but WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See [LICENSE](LICENSE) for the full terms.
+
+Minecraft is a trademark of Mojang Synergies AB. Acelus is not affiliated with, endorsed by, or
+supported by Mojang or Microsoft.
