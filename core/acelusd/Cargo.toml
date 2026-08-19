@@ -1,0 +1,28 @@
+[package]
+name = "acelusd"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "acelusd"
+path = "src/main.rs"
+
+[dependencies]
+acelus-auth.workspace = true
+acelus-cas.workspace = true
+acelus-content.workspace = true
+acelus-diag.workspace = true
+acelus-instance.workspace = true
+acelus-launch.workspace = true
+acelus-meta.workspace = true
+acelus-net.workspace = true
+acelus-rpc.workspace = true
+anyhow.workspace = true
+dirs.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

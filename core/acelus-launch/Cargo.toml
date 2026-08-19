@@ -1,0 +1,15 @@
+[package]
+name = "acelus-launch"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+acelus-instance.workspace = true
+acelus-native-sys.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true

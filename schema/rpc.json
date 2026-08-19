@@ -1,0 +1,347 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jaysyrk/Acelus/schema/rpc.json",
+  "title": "Acelus daemon RPC",
+  "description": "JSON-RPC 2.0 interface exposed by acelusd over a Unix domain socket, or a named pipe on Windows. This document is the single source of truth for the boundary: the Rust server and the Go client are both generated from it, and the desktop UI speaks the same interface so command line and graphical clients cannot drift apart.",
+  "rpcVersion": 1,
+  "transport": {
+    "framing": "Newline-delimited JSON-RPC 2.0. Each frame is one complete JSON value terminated by \\n.",
+    "endpoint": {
+      "unix": "$XDG_RUNTIME_DIR/acelus/acelusd.sock, falling back to $HOME/.local/state/acelus/acelusd.sock",
+      "windows": "\\\\.\\pipe\\acelusd"
+    },
+    "notifications": "Long running operations return a job id immediately and stream progress as server-to-client notifications until a terminal event is sent."
+  },
+  "methods": {
+    "account.beginLogin": {
+      "description": "Start a Microsoft device code login. Returns the code and URL to show the user. No credentials pass through Acelus at any point.",
+      "params": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object",
+        "required": ["jobId", "userCode", "verificationUri", "expiresIn", "interval"],
+        "properties": {
+          "jobId": { "type": "string" },
+          "userCode": { "description": "Code the user types into the verification page.", "type": "string" },
+          "verificationUri": { "type": "string", "format": "uri" },
+          "expiresIn": { "description": "Seconds until the device code expires.", "type": "integer" },
+          "interval": { "description": "Minimum seconds between polls, as dictated by the identity provider.", "type": "integer" }
+        }
+      }
+    },
+    "account.list": {
+      "description": "All accounts with cached credentials, including which one is active.",
+      "params": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object",
+        "required": ["accounts"],
+        "properties": {
+          "active": { "type": ["string", "null"] },
+          "accounts": { "type": "array", "items": { "$ref": "#/$defs/account" } }
+        }
+      }
+    },
+    "account.select": {
+      "description": "Set the account future launches authenticate as.",
+      "params": { "type": "object", "required": ["uuid"], "properties": { "uuid": { "type": "string" } } },
+      "result": { "type": "object", "properties": {} }
+    },
+    "account.remove": {
+      "description": "Forget an account and erase its refresh token from the OS keyring.",
+      "params": { "type": "object", "required": ["uuid"], "properties": { "uuid": { "type": "string" } } },
+      "result": { "type": "object", "properties": {} }
+    },
+    "version.list": {
+      "description": "Minecraft versions from Mojang's manifest, newest first.",
+      "params": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "channels": { "type": "array", "items": { "enum": ["release", "snapshot", "old_beta", "old_alpha"] } },
+          "limit": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "result": {
+        "type": "object",
+        "required": ["versions"],
+        "properties": { "versions": { "type": "array", "items": { "$ref": "#/$defs/versionSummary" } } }
+      }
+    },
+    "instance.create": {
+      "description": "Create an instance directory and resolve it into a lockfile. Does not download anything; install.run does that.",
+      "params": {
+        "type": "object",
+        "required": ["name", "version"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "version": { "type": "string" },
+          "loader": { "$ref": "#/$defs/loaderSpec" }
+        }
+      },
+      "result": { "type": "object", "required": ["instance"], "properties": { "instance": { "$ref": "#/$defs/instance" } } }
+    },
+    "instance.list": {
+      "params": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": { "type": "object", "required": ["instances"], "properties": { "instances": { "type": "array", "items": { "$ref": "#/$defs/instance" } } } }
+    },
+    "instance.delete": {
+      "description": "Remove an instance. Shared objects stay in the content addressed store until a garbage collection pass runs.",
+      "params": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" }, "keepUserData": { "type": "boolean" } } },
+      "result": { "type": "object", "properties": {} }
+    },
+    "install.run": {
+      "description": "Materialize everything the lockfile names: download missing objects, verify them, and link them into the instance. Streams install.progress notifications.",
+      "params": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": { "id": { "type": "string" }, "force": { "description": "Re-verify and re-fetch even artifacts already present.", "type": "boolean" } }
+      },
+      "result": { "type": "object", "required": ["jobId"], "properties": { "jobId": { "type": "string" } } }
+    },
+    "verify.run": {
+      "description": "Check every artifact in an instance against its lockfile entry without downloading. Reports drift rather than repairing it.",
+      "params": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" } } },
+      "result": {
+        "type": "object",
+        "required": ["ok", "problems"],
+        "properties": {
+          "ok": { "type": "boolean" },
+          "problems": { "type": "array", "items": { "$ref": "#/$defs/verifyProblem" } }
+        }
+      }
+    },
+    "launch.start": {
+      "description": "Launch an instance. Refuses unless the active account holds a signature-verified entitlement and a resolvable profile.",
+      "params": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "accountUuid": { "description": "Overrides the active account for this launch only.", "type": "string" },
+          "sandbox": { "description": "Confine the game process. Defaults to the instance setting.", "type": "boolean" },
+          "quickPlay": { "$ref": "#/$defs/quickPlay" }
+        }
+      },
+      "result": { "type": "object", "required": ["sessionId", "pid"], "properties": { "sessionId": { "type": "string" }, "pid": { "type": "integer" } } }
+    },
+    "launch.stop": {
+      "description": "Terminate a running session and every process it spawned.",
+      "params": { "type": "object", "required": ["sessionId"], "properties": { "sessionId": { "type": "string" }, "force": { "type": "boolean" } } },
+      "result": { "type": "object", "properties": {} }
+    },
+    "launch.status": {
+      "params": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": { "type": "object", "required": ["sessions"], "properties": { "sessions": { "type": "array", "items": { "$ref": "#/$defs/session" } } } }
+    },
+    "log.tail": {
+      "description": "Stream captured output for a session. Replays the retained buffer, then follows live output as log.line notifications.",
+      "params": {
+        "type": "object",
+        "required": ["sessionId"],
+        "properties": { "sessionId": { "type": "string" }, "replay": { "description": "How many retained lines to send before following.", "type": "integer" } }
+      },
+      "result": { "type": "object", "required": ["jobId"], "properties": { "jobId": { "type": "string" } } }
+    },
+    "diag.analyze": {
+      "description": "Run the crash rule engine over a finished session and report what went wrong, in order of confidence.",
+      "params": { "type": "object", "required": ["sessionId"], "properties": { "sessionId": { "type": "string" } } },
+      "result": { "type": "object", "required": ["findings"], "properties": { "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } } } }
+    },
+    "daemon.info": {
+      "params": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": {
+        "type": "object",
+        "required": ["version", "rpcVersion", "dataDir"],
+        "properties": { "version": { "type": "string" }, "rpcVersion": { "type": "integer" }, "dataDir": { "type": "string" } }
+      }
+    },
+    "daemon.shutdown": {
+      "params": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": { "type": "object", "properties": {} }
+    }
+  },
+  "notifications": {
+    "account.loginComplete": {
+      "description": "Terminal event for account.beginLogin. Either the account is populated or the error explains why the chain stopped.",
+      "params": {
+        "type": "object",
+        "required": ["jobId"],
+        "properties": {
+          "jobId": { "type": "string" },
+          "account": { "$ref": "#/$defs/account" },
+          "error": { "$ref": "#/$defs/error" }
+        }
+      }
+    },
+    "install.progress": {
+      "params": {
+        "type": "object",
+        "required": ["jobId", "completedBytes", "totalBytes", "completedFiles", "totalFiles"],
+        "properties": {
+          "jobId": { "type": "string" },
+          "phase": { "enum": ["resolve", "download", "verify", "extract", "link", "done"] },
+          "completedBytes": { "type": "integer" },
+          "totalBytes": { "type": "integer" },
+          "completedFiles": { "type": "integer" },
+          "totalFiles": { "type": "integer" },
+          "reusedBytes": { "description": "Bytes satisfied from the content addressed store instead of the network.", "type": "integer" },
+          "current": { "type": "string" }
+        }
+      }
+    },
+    "install.complete": {
+      "params": {
+        "type": "object",
+        "required": ["jobId", "ok"],
+        "properties": { "jobId": { "type": "string" }, "ok": { "type": "boolean" }, "error": { "$ref": "#/$defs/error" } }
+      }
+    },
+    "log.line": {
+      "params": {
+        "type": "object",
+        "required": ["jobId", "stream", "line"],
+        "properties": {
+          "jobId": { "type": "string" },
+          "stream": { "enum": ["stdout", "stderr"] },
+          "line": { "type": "string" }
+        }
+      }
+    },
+    "session.exit": {
+      "params": {
+        "type": "object",
+        "required": ["sessionId", "exitCode"],
+        "properties": {
+          "sessionId": { "type": "string" },
+          "exitCode": { "type": "integer" },
+          "signal": { "type": ["string", "null"] },
+          "crashed": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "errors": {
+    "description": "Codes below -32000 are Acelus specific; the rest follow JSON-RPC 2.0.",
+    "codes": {
+      "-32000": "INTERNAL",
+      "-32001": "NOT_FOUND",
+      "-32002": "ALREADY_EXISTS",
+      "-32003": "NETWORK",
+      "-32004": "INTEGRITY_FAILED",
+      "-32010": "AUTH_REQUIRED",
+      "-32011": "AUTH_EXPIRED",
+      "-32012": "XBOX_ACCOUNT_MISSING",
+      "-32013": "XBOX_CHILD_ACCOUNT",
+      "-32014": "XBOX_REGION_UNAVAILABLE",
+      "-32015": "XBOX_ACCOUNT_BANNED",
+      "-32016": "XBOX_ADULT_VERIFICATION_REQUIRED",
+      "-32017": "ENTITLEMENT_MISSING",
+      "-32018": "ENTITLEMENT_SIGNATURE_INVALID",
+      "-32019": "AZURE_APP_UNAPPROVED",
+      "-32030": "JAVA_UNAVAILABLE",
+      "-32031": "LOADER_UNSUPPORTED",
+      "-32032": "DEPENDENCY_CONFLICT",
+      "-32040": "INSTANCE_RUNNING",
+      "-32041": "SANDBOX_UNAVAILABLE"
+    }
+  },
+  "$defs": {
+    "account": {
+      "type": "object",
+      "required": ["uuid", "name"],
+      "properties": {
+        "uuid": { "type": "string" },
+        "name": { "type": "string" },
+        "skinUrl": { "type": ["string", "null"] },
+        "capeUrl": { "type": ["string", "null"] },
+        "entitlementVerified": { "description": "True only when the entitlement JWT signature checked out against Mojang's public key.", "type": "boolean" },
+        "expiresAt": { "description": "RFC 3339 expiry of the cached Minecraft token.", "type": "string" }
+      }
+    },
+    "versionSummary": {
+      "type": "object",
+      "required": ["id", "type", "releaseTime"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "enum": ["release", "snapshot", "old_beta", "old_alpha"] },
+        "releaseTime": { "type": "string" },
+        "complianceLevel": { "type": "integer" }
+      }
+    },
+    "loaderSpec": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["fabric", "quilt", "neoforge", "forge"] },
+        "version": { "description": "Omit to take the latest stable build for the target Minecraft version.", "type": "string" }
+      }
+    },
+    "instance": {
+      "type": "object",
+      "required": ["id", "name", "version", "path", "installed"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "loader": { "$ref": "#/$defs/loaderSpec" },
+        "path": { "type": "string" },
+        "installed": { "description": "Whether every artifact in the lockfile is present and verified.", "type": "boolean" },
+        "lastPlayed": { "type": ["string", "null"] },
+        "sizeOnDisk": { "description": "Bytes uniquely attributable to this instance, excluding objects shared with others.", "type": "integer" }
+      }
+    },
+    "quickPlay": {
+      "description": "Jump straight into a world or server, using the quick play arguments the version JSON declares.",
+      "type": "object",
+      "properties": {
+        "singleplayer": { "type": "string" },
+        "multiplayer": { "type": "string" },
+        "realms": { "type": "string" }
+      }
+    },
+    "session": {
+      "type": "object",
+      "required": ["sessionId", "instanceId", "pid", "startedAt"],
+      "properties": {
+        "sessionId": { "type": "string" },
+        "instanceId": { "type": "string" },
+        "pid": { "type": "integer" },
+        "startedAt": { "type": "string" },
+        "sandboxed": { "type": "boolean" }
+      }
+    },
+    "verifyProblem": {
+      "type": "object",
+      "required": ["path", "kind"],
+      "properties": {
+        "path": { "type": "string" },
+        "kind": { "enum": ["missing", "size-mismatch", "hash-mismatch", "unexpected"] },
+        "expected": { "type": "string" },
+        "actual": { "type": "string" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["rule", "confidence", "title", "detail"],
+      "properties": {
+        "rule": { "description": "Identifier of the rule that matched, so findings can be traced to the ruleset.", "type": "string" },
+        "confidence": { "enum": ["certain", "likely", "possible"] },
+        "title": { "type": "string" },
+        "detail": { "type": "string" },
+        "culprit": { "description": "The mod, library or setting the rule blames, when it can name one.", "type": ["string", "null"] },
+        "suggestedFix": { "type": ["string", "null"] }
+      }
+    },
+    "error": {
+      "type": "object",
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "integer" },
+        "message": { "type": "string" },
+        "data": { "type": "object" }
+      }
+    }
+  }
+}

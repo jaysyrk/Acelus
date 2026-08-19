@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  rust:
+    name: rust / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux keyring dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+      - run: cargo fmt --all -- --check
+        if: runner.os == 'Linux'
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+      - run: cargo test --all --all-features
+
+  go:
+    name: go / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: cli/go.sum
+      - run: gofmt -l . && test -z "$(gofmt -l .)"
+        if: runner.os != 'Windows'
+      - run: go vet ./...
+      - run: go test ./...
+      - run: go build ./...
+
+  zig:
+    name: zig
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+      - name: Check formatting
+        run: zig fmt --check native/procguard/src native/procguard/build.zig
+      - name: Test
+        run: zig build test --summary all
+        working-directory: native/procguard
+      - name: Cross-compile every supported target
+        working-directory: native/procguard
+        run: |
+          for target in \
+            x86_64-linux-gnu aarch64-linux-gnu \
+            x86_64-windows-gnu aarch64-windows-gnu \
+            x86_64-macos aarch64-macos
+          do
+            echo "::group::$target"
+            zig build -Dtarget=$target --prefix "zig-out/$target"
+            echo "::endgroup::"
+          done
+
+  schema:
+    name: schema
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate schema documents parse
+        run: |
+          for f in schema/*.json; do
+            python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$f"
+            echo "ok $f"
+          done
+
+  no-comments:
+    name: no comments in code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/check_no_comments.py
