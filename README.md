@@ -31,15 +31,28 @@ acelus create Modded 1.21.11 --fabric
 acelus create Pinned 1.21.11 --quilt=0.29.2
 ```
 
-Measured against Mojang on 1.12.2, on one machine:
+Measured against Mojang, cold store, then a second instance of the same version:
 
-| | time | disk added |
-|---|---|---|
-| First install (client, 39 libraries, natives, assets, Java 8 runtime) | 25.5 s | 403 MiB |
-| Second instance of the same version | **0.43 s** | **2.1 MiB** |
+| | | time | disk added |
+|---|---|---|---|
+| 1.12.2 | first install — client, 39 libraries, natives, assets, Java 8 | 25.5 s | 403 MiB |
+| | second instance | **0.43 s** | **2.1 MiB** |
+| 1.21.11 + Fabric | second instance, btrfs | **0.16 s** | **0 MiB** |
 
-The second instance costs only its unpacked natives. Everything else is hardlinked out of the
-content addressed store.
+A repeated instance costs only what has to be written fresh. On 1.12.2 that is the unpacked
+natives, which is why it is not quite free; versions from 1.19 on name their natives as ordinary
+classpath entries and unpack nothing, so a second instance costs nothing measurable at all.
+
+Reproducing this needs the right instrument. `du` deduplicates by inode, which sees hardlinks but
+not reflinks — on btrfs or XFS the store clones extents into a fresh inode, and `du` will report
+every instance at full size while the filesystem stores one copy. Measure free space instead:
+
+```
+before=$(df -B1 --output=avail ~/.local/share/acelus | tail -1)
+acelus create Second 1.21.11 --fabric && acelus install second
+after=$(df -B1 --output=avail ~/.local/share/acelus | tail -1)
+echo $(( (before - after) / 1024 / 1024 )) MiB
+```
 
 ## What it does differently
 
