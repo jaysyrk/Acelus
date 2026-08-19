@@ -9,10 +9,20 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"time"
 )
 
 const dialAttempts = 40
+
+var daemonName = "acelusd" + exeSuffix()
+
+func exeSuffix() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
+}
 
 type Error struct {
 	Code    int             `json:"code"`
@@ -95,15 +105,39 @@ func DialOrStart(socket string) (*Client, error) {
 }
 
 func startDaemon() error {
-	binary := os.Getenv("ACELUSD_BINARY")
-	if binary == "" {
-		binary = "acelusd"
+	binary, err := daemonBinary()
+	if err != nil {
+		return err
 	}
 
 	command := exec.Command(binary)
 	command.Stdout = nil
 	command.Stderr = nil
 	return command.Start()
+}
+
+func daemonBinary() (string, error) {
+	if explicit := os.Getenv("ACELUSD_BINARY"); explicit != "" {
+		return explicit, nil
+	}
+
+	if self, err := os.Executable(); err == nil {
+		if resolved, err := filepath.EvalSymlinks(self); err == nil {
+			self = resolved
+		}
+		beside := filepath.Join(filepath.Dir(self), daemonName)
+		if info, err := os.Stat(beside); err == nil && !info.IsDir() {
+			return beside, nil
+		}
+	}
+
+	found, err := exec.LookPath(daemonName)
+	if err != nil {
+		return "", fmt.Errorf(
+			"%s is neither beside this binary nor on PATH; "+
+				"add it to PATH or point ACELUSD_BINARY at it", daemonName)
+	}
+	return found, nil
 }
 
 func (c *Client) Close() error {

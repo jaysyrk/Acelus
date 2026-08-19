@@ -84,8 +84,15 @@ Service, so `libdbus-1-dev` and `pkg-config` must be present.
 
 ```
 cargo build --release
-(cd cli && go build ./cmd/acelus)
-(cd native/procguard && zig build)
+(cd cli && go build -o ../target/release/acelus ./cmd/acelus)
+```
+
+That leaves `acelus` and `acelusd` side by side in `target/release`. The client starts the
+daemon itself, looking beside its own binary before falling back to PATH, so putting that one
+directory on PATH is enough:
+
+```
+export PATH="$PWD/target/release:$PATH"
 ```
 
 Zig also cross-compiles the native shims for every supported target from any host:
