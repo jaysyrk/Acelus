@@ -7,31 +7,39 @@ requires an Azure application that Mojang has explicitly approved. Until approva
 Approval takes days, and up to a further 24 hours to propagate. **Start this before writing any
 auth code.**
 
+Registering is free. It does not need a paid Azure subscription.
+
 ## 1. Register the application
 
-In the [Azure portal](https://portal.azure.com) under *App registrations* > *New registration*:
+1. Sign in to <https://portal.azure.com>.
+2. Search **App registrations** in the bar at the top and open it.
+3. Click **+ New registration**.
+4. **Name**: anything. `Acelus` will do.
+5. **Supported account types**: the last of the four options, **Personal Microsoft accounts
+   only**. The option above it also mentions personal accounts but pairs them with organizational
+   directories; that is not this one. Minecraft accounts live in the `consumers` tenant, and any
+   other choice makes `XboxLive.signin` fail in ways the error messages do not explain.
+6. **Redirect URI**: change the platform dropdown from *Web* to **Public client/native (mobile &
+   desktop)** and enter `http://localhost`. Loopback needs no certificate.
+7. Click **Register**.
+8. On the **Overview** page that follows, copy the **Application (client) ID**. It sits above
+   *Object ID* and *Directory (tenant) ID*, which are different values and not the one you want.
+   There is no tenant ID to record: Acelus always uses `consumers`.
+9. In the left sidebar under *Manage*, open **Authentication**, scroll to **Advanced settings**,
+   and set **Allow public client flows** to **Yes**. Click **Save**. This enables the device code
+   flow Acelus logs in with; without it login fails with `unauthorized_client`.
 
-| Setting | Value | Why |
-|---|---|---|
-| Supported account types | **Personal Microsoft accounts only** (`consumers` tenant) | Minecraft accounts are consumer accounts. Choosing a work/school or multi-tenant option makes `XboxLive.signin` fail in ways the error messages do not explain. |
-| Redirect URI | *Public client/native* > `http://localhost` | Loopback redirect for the authorization code flow. No HTTPS certificate needed on loopback. |
-| Client secret | **Do not create one** | Acelus is a public client. It ships to users' machines, so a secret in the binary is not a secret. |
-
-Then under *Authentication*:
-
-- Set **Allow public client flows** to **Yes**. This enables the device code flow, which is what
-  Acelus uses by default. Without it, device code login fails with `unauthorized_client`.
-
-Record the **Application (client) ID** from the *Overview* page. There is no tenant ID to record —
-Acelus always uses the `consumers` tenant.
+**Do not create a client secret.** Acelus is a public client that runs on the user's machine, so a
+secret shipped inside it is not secret. The device code flow does not use one.
 
 ## 2. Generate activity, then request approval
 
 The ordering here is the part that trips people up, and it is deliberate:
 
-1. **Attempt a login first.** Run the auth chain end to end with your new client ID. It will get as
-   far as a valid XSTS token and then fail at `login_with_xbox` with **403**. That is the expected,
-   correct outcome for an unapproved app.
+1. **Attempt a login first.** Run `acelus login` with your new client ID configured. Sign in with
+   the code it prints. It will get as far as a valid XSTS token and then fail at `login_with_xbox`
+   with **403**. That is the expected, correct outcome for an unapproved app, and the activity
+   Microsoft wants to see.
 2. **Then submit <https://aka.ms/mce-reviewappid>.** Microsoft wants to see that the application has
    actually been used before they will review it. Submitting without a login attempt on record
    tends to go nowhere.
