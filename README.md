@@ -8,8 +8,28 @@ your crash logs with more respect than the alternatives.
 
 ## Status
 
-Early development. Phase 1 — a headless core plus a command line client that downloads, verifies and
-launches vanilla Minecraft — is in progress. See [the roadmap](#roadmap).
+The command line launcher works end to end. It resolves a version from Mojang, downloads and
+verifies every file, provisions the matching Java runtime, and starts the game under supervision.
+
+Signing in additionally needs an Azure application approved by Mojang — see
+[docs/AZURE_SETUP.md](docs/AZURE_SETUP.md). Everything up to and including install works without one.
+
+```
+acelus create Survival 1.21.11
+acelus install survival
+acelus login
+acelus launch survival
+```
+
+Measured against Mojang on 1.12.2, on one machine:
+
+| | time | disk added |
+|---|---|---|
+| First install (client, 39 libraries, natives, assets, Java 8 runtime) | 25.5 s | 403 MiB |
+| Second instance of the same version | **0.43 s** | **2.1 MiB** |
+
+The second instance costs only its unpacked natives. Everything else is hardlinked out of the
+content addressed store.
 
 ## What it does differently
 
@@ -87,8 +107,8 @@ graphical client cannot drift apart.
 
 ## Roadmap
 
-- **Phase 0** — repository, toolchains, schemas, CI, Azure application submitted
-- **Phase 1** — Microsoft auth, vanilla download and verify, launching from the command line
+- **Phase 0** — repository, toolchains, schemas, CI — *done*
+- **Phase 1** — Microsoft auth, vanilla download and verify, launching from the command line — *done*
 - **Phase 2** — Fabric, Quilt, NeoForge, Forge; Modrinth and CurseForge; modpack import and export
 - **Phase 3** — desktop application
 - **Phase 4** — crash diagnosis, sandboxing, instance sync
