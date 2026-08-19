@@ -1,8 +1,11 @@
+pub mod extract;
+pub mod install;
 pub mod lock;
 pub mod paths;
 pub mod plan;
 pub mod resolve;
 
+pub use install::{Installer, Phase, Progress};
 pub use lock::{JavaSource, LoaderKind, LockArtifact, Lockfile, Role};
 pub use paths::{InstanceLayout, Paths};
 pub use plan::{Plan, PlannedArtifact, PlannedJava};

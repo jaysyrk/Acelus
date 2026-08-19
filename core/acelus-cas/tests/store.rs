@@ -192,3 +192,66 @@ fn abandoned_writers_leave_nothing_behind() {
     };
     assert!(!temp.exists());
 }
+
+#[test]
+fn a_vendor_digest_can_be_mapped_to_a_stored_object() {
+    let (_dir, store) = store();
+    let hash = store.insert_bytes(b"client.jar contents").unwrap();
+    let sha1 = "2dc72797acbc1b63fc16a11c4ac393605f453754";
+
+    assert_eq!(store.alias("sha1", sha1).unwrap(), None);
+
+    store.set_alias("sha1", sha1, &hash).unwrap();
+
+    assert_eq!(store.alias("sha1", sha1).unwrap(), Some(hash));
+    assert_eq!(store.resolve_alias("sha1", sha1).unwrap(), Some(hash));
+}
+
+#[test]
+fn namespaces_keep_different_digest_kinds_apart() {
+    let (_dir, store) = store();
+    let a = store.insert_bytes(b"a").unwrap();
+    let b = store.insert_bytes(b"b").unwrap();
+    let key = "0".repeat(40);
+
+    store.set_alias("sha1", &key, &a).unwrap();
+    store.set_alias("sha512", &key, &b).unwrap();
+
+    assert_eq!(store.alias("sha1", &key).unwrap(), Some(a));
+    assert_eq!(store.alias("sha512", &key).unwrap(), Some(b));
+}
+
+#[test]
+fn an_alias_pointing_at_a_collected_object_resolves_to_nothing() {
+    let (_dir, store) = store();
+    let hash = store.insert_bytes(b"orphan").unwrap();
+    let sha1 = "1".repeat(40);
+    store.set_alias("sha1", &sha1, &hash).unwrap();
+
+    store.gc(&HashSet::new()).unwrap();
+
+    assert_eq!(
+        store.resolve_alias("sha1", &sha1).unwrap(),
+        None,
+        "a dangling alias must not claim an object that is no longer stored"
+    );
+}
+
+#[test]
+fn a_short_alias_key_does_not_panic() {
+    let (_dir, store) = store();
+    let hash = store.insert_bytes(b"x").unwrap();
+    store.set_alias("sha1", "a", &hash).unwrap();
+    assert_eq!(store.alias("sha1", "a").unwrap(), Some(hash));
+}
+
+#[test]
+fn a_corrupt_alias_file_is_treated_as_absent() {
+    let (_dir, store) = store();
+    let sha1 = "2".repeat(40);
+    let path = store.alias_path("sha1", &sha1);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, b"not a hash").unwrap();
+
+    assert_eq!(store.alias("sha1", &sha1).unwrap(), None);
+}

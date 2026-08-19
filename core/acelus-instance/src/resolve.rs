@@ -145,7 +145,7 @@ impl Resolver {
 
         for native in &libraries.natives {
             let mut artifact = PlannedArtifact::new(
-                format!("natives/{}", native.artifact.path),
+                format!("natives/jars/{}", native.artifact.path),
                 Role::Native,
                 native.artifact.url.clone(),
             )

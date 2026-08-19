@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::{io_error, Error, Hash, Result, HASH_HEX_LEN};
 
 const OBJECTS_DIR: &str = "objects";
+const ALIASES_DIR: &str = "aliases";
 const TMP_DIR: &str = "tmp";
 const SHARD_LEN: usize = 2;
 
@@ -44,7 +45,11 @@ impl Store {
         if root.exists() && !root.is_dir() {
             return Err(Error::NotADirectory { path: root });
         }
-        for dir in [root.join(OBJECTS_DIR), root.join(TMP_DIR)] {
+        for dir in [
+            root.join(OBJECTS_DIR),
+            root.join(ALIASES_DIR),
+            root.join(TMP_DIR),
+        ] {
             fs::create_dir_all(&dir).map_err(|e| io_error(&dir, e))?;
         }
         Ok(Self { root })
@@ -70,6 +75,43 @@ impl Store {
             Ok(meta) => Ok(meta.len()),
             Err(e) if e.kind() == io::ErrorKind::NotFound => Err(Error::Missing { hash: *hash }),
             Err(e) => Err(io_error(path, e)),
+        }
+    }
+
+    pub fn alias_path(&self, namespace: &str, key: &str) -> PathBuf {
+        let (shard, rest) = if key.len() > SHARD_LEN {
+            key.split_at(SHARD_LEN)
+        } else {
+            ("_", key)
+        };
+        self.root
+            .join(ALIASES_DIR)
+            .join(namespace)
+            .join(shard)
+            .join(rest)
+    }
+
+    pub fn alias(&self, namespace: &str, key: &str) -> Result<Option<Hash>> {
+        let path = self.alias_path(namespace, key);
+        match fs::read_to_string(&path) {
+            Ok(contents) => Ok(contents.trim().parse().ok()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(io_error(path, e)),
+        }
+    }
+
+    pub fn set_alias(&self, namespace: &str, key: &str, hash: &Hash) -> Result<()> {
+        let path = self.alias_path(namespace, key);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(|e| io_error(parent, e))?;
+        }
+        fs::write(&path, hash.to_hex()).map_err(|e| io_error(path, e))
+    }
+
+    pub fn resolve_alias(&self, namespace: &str, key: &str) -> Result<Option<Hash>> {
+        match self.alias(namespace, key)? {
+            Some(hash) if self.contains(&hash) => Ok(Some(hash)),
+            _ => Ok(None),
         }
     }
 

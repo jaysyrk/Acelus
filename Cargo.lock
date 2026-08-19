@@ -68,6 +68,7 @@ dependencies = [
  "acelus-meta",
  "acelus-net",
  "dirs",
+ "futures",
  "hex",
  "jsonschema",
  "serde",
@@ -80,6 +81,7 @@ dependencies = [
  "url",
  "uuid",
  "wiremock",
+ "zip",
 ]
 
 [[package]]

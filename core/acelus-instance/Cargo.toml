@@ -12,6 +12,8 @@ acelus-cas.workspace = true
 acelus-net.workspace = true
 dirs.workspace = true
 url.workspace = true
+zip.workspace = true
+futures.workspace = true
 acelus-meta.workspace = true
 thiserror.workspace = true
 serde.workspace = true
@@ -29,4 +31,6 @@ sha1.workspace = true
 hex.workspace = true
 acelus-meta.workspace = true
 acelus-net.workspace = true
+acelus-cas.workspace = true
+zip.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "time"] }
