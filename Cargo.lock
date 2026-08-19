@@ -68,14 +68,18 @@ dependencies = [
  "acelus-meta",
  "acelus-net",
  "dirs",
+ "hex",
  "jsonschema",
  "serde",
  "serde_json",
+ "sha1",
  "tempfile",
  "thiserror",
  "tokio",
  "tracing",
+ "url",
  "uuid",
+ "wiremock",
 ]
 
 [[package]]
