@@ -1,3 +1,4 @@
+use semver::Version;
 use serde::{Deserialize, Serialize};
 
 use crate::version::Coordinates;
@@ -38,6 +39,18 @@ impl LoaderKind {
 
     pub fn versions_url(self, game_version: &str) -> String {
         format!("{}/versions/loader/{game_version}", self.meta_base())
+    }
+
+    /// Whether the digests this loader publishes alongside its metadata describe the
+    /// artifacts its Maven repository actually serves. Quilt's do not: for every version
+    /// measured, the sha1, sha256 and sha512 in `meta.quiltmc.org` match neither the jar,
+    /// the pom nor the sources jar at the same coordinate, while the repository's own
+    /// `.sha1` sidecar matches the served bytes exactly. Its declared sizes are correct.
+    pub const fn publishes_usable_digests(self) -> bool {
+        match self {
+            LoaderKind::Fabric => true,
+            LoaderKind::Quilt => false,
+        }
     }
 
     pub fn parse(value: &str) -> Option<Self> {
@@ -248,7 +261,7 @@ pub fn select<'a>(
     game_version: &str,
 ) -> Result<&'a LoaderProfile> {
     match wanted {
-        None => profiles.first().ok_or_else(|| Error::NoBuilds {
+        None => newest(profiles).ok_or_else(|| Error::NoBuilds {
             kind: kind.as_str(),
             game_version: game_version.to_string(),
         }),
@@ -261,6 +274,36 @@ pub fn select<'a>(
                 game_version: game_version.to_string(),
             }),
     }
+}
+
+fn newest(profiles: &[LoaderProfile]) -> Option<&LoaderProfile> {
+    let mut stable: Option<(&LoaderProfile, Version)> = None;
+    let mut prerelease: Option<(&LoaderProfile, Version)> = None;
+
+    for profile in profiles {
+        let Ok(version) = Version::parse(&profile.loader_version) else {
+            continue;
+        };
+
+        let slot = if version.pre.is_empty() {
+            &mut stable
+        } else {
+            &mut prerelease
+        };
+
+        let better = match slot.as_ref() {
+            Some((_, best)) => version > *best,
+            None => true,
+        };
+        if better {
+            *slot = Some((profile, version));
+        }
+    }
+
+    stable
+        .or(prerelease)
+        .map(|(profile, _)| profile)
+        .or_else(|| profiles.first())
 }
 
 fn build_profile(kind: LoaderKind, game_version: &str, entry: RawEntry) -> Result<LoaderProfile> {
@@ -317,6 +360,12 @@ fn build_profile(kind: LoaderKind, game_version: &str, entry: RawEntry) -> Resul
             sha1: library.sha1,
             size: library.size,
         });
+    }
+
+    if !kind.publishes_usable_digests() {
+        for library in &mut libraries {
+            library.sha1 = None;
+        }
     }
 
     Ok(LoaderProfile {
@@ -449,7 +498,7 @@ mod tests {
     }
 
     #[test]
-    fn a_quilt_profile_takes_its_digests_from_the_hashes_object() {
+    fn a_quilt_profile_keeps_its_sizes_and_drops_its_digests() {
         let profile = &quilt()[0];
 
         assert_eq!(profile.kind, LoaderKind::Quilt);
@@ -464,10 +513,7 @@ mod tests {
             .iter()
             .find(|library| library.name.contains("quilt-loader"))
             .unwrap();
-        assert_eq!(
-            loader.sha1.as_deref(),
-            Some("bed0a01be87c4378d9002611d9642e8f9e9c2cff")
-        );
+        assert_eq!(loader.sha1, None);
         assert_eq!(loader.size, Some(1550096));
     }
 
@@ -561,6 +607,80 @@ mod tests {
         assert_eq!(LoaderKind::parse("Quilt"), Some(LoaderKind::Quilt));
         assert_eq!(LoaderKind::parse("forge"), None);
         assert_eq!(LoaderKind::Fabric.as_str(), "fabric");
+    }
+
+    const UNORDERED: &[u8] = br#"[
+      {"loader":{"maven":"org.quiltmc:quilt-loader:0.20.0-beta.9","version":"0.20.0-beta.9",
+                 "hashes":{"sha1":"bed0a01be87c4378d9002611d9642e8f9e9c2cff"},"file_size":1550096},
+       "hashed":{"maven":"org.quiltmc:hashed:1.21.4","version":"1.21.4"},
+       "launcherMeta":{"version":1,"mainClass":{"client":"org.quiltmc.loader.impl.launch.knot.KnotClient"},
+                       "libraries":{"client":[],"common":[]}}},
+      {"loader":{"maven":"org.quiltmc:quilt-loader:0.24.0","version":"0.24.0"},
+       "launcherMeta":{"version":1,"mainClass":{"client":"org.quiltmc.loader.impl.launch.knot.KnotClient"},
+                       "libraries":{"client":[],"common":[]}}},
+      {"loader":{"maven":"org.quiltmc:quilt-loader:0.22.0","version":"0.22.0"},
+       "launcherMeta":{"version":1,"mainClass":{"client":"org.quiltmc.loader.impl.launch.knot.KnotClient"},
+                       "libraries":{"client":[],"common":[]}}}
+    ]"#;
+
+    #[test]
+    fn the_newest_stable_build_wins_however_the_service_orders_its_list() {
+        let profiles = parse_versions(LoaderKind::Quilt, "1.21.4", UNORDERED).unwrap();
+        let chosen = select(&profiles, None, LoaderKind::Quilt, "1.21.4").unwrap();
+        assert_eq!(
+            chosen.loader_version, "0.24.0",
+            "quilt lists its builds unordered, so taking the first entry hands the player a beta"
+        );
+    }
+
+    #[test]
+    fn a_prerelease_is_taken_only_when_nothing_stable_is_published() {
+        let only_betas: &[u8] = br#"[
+          {"loader":{"maven":"org.quiltmc:quilt-loader:0.20.0-beta.2","version":"0.20.0-beta.2"},
+           "launcherMeta":{"version":1,"mainClass":{"client":"C"},"libraries":{"client":[],"common":[]}}},
+          {"loader":{"maven":"org.quiltmc:quilt-loader:0.20.0-beta.10","version":"0.20.0-beta.10"},
+           "launcherMeta":{"version":1,"mainClass":{"client":"C"},"libraries":{"client":[],"common":[]}}}
+        ]"#;
+
+        let profiles = parse_versions(LoaderKind::Quilt, "1.21.4", only_betas).unwrap();
+        let chosen = select(&profiles, None, LoaderKind::Quilt, "1.21.4").unwrap();
+        assert_eq!(chosen.loader_version, "0.20.0-beta.10");
+    }
+
+    #[test]
+    fn quilt_digests_are_discarded_because_they_do_not_describe_the_published_jars() {
+        let profiles = parse_versions(LoaderKind::Quilt, "1.21.4", UNORDERED).unwrap();
+        let beta = profiles
+            .iter()
+            .find(|profile| profile.loader_version == "0.20.0-beta.9")
+            .unwrap();
+
+        assert!(
+            beta.libraries.iter().all(|library| library.sha1.is_none()),
+            "quilt publishes digests that match no artifact it serves, so they must never \
+             be used to verify a download"
+        );
+        assert!(beta
+            .libraries
+            .iter()
+            .all(|library| library.needs_checksum()));
+        assert_eq!(beta.libraries[0].size, Some(1_550_096));
+    }
+
+    #[test]
+    fn fabric_digests_are_kept_because_they_do_describe_the_published_jars() {
+        let profiles = parse_versions(LoaderKind::Fabric, "1.21.11", FABRIC).unwrap();
+        let asm = profiles[0]
+            .libraries
+            .iter()
+            .find(|library| library.name.starts_with("org.ow2.asm:asm:"))
+            .unwrap();
+
+        assert_eq!(
+            asm.sha1.as_deref(),
+            Some("ada2141c0cc52ee8f5c48cd5fa4ce0e794f22236")
+        );
+        assert!(!asm.needs_checksum());
     }
 
     #[test]

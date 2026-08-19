@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
         .root_module = mod,
         .linkage = .static,
     });
+    lib.bundle_compiler_rt = true;
     lib.installHeader(b.path("include/procguard.h"), "procguard.h");
     b.installArtifact(lib);
 
