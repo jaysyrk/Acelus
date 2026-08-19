@@ -165,10 +165,14 @@ dependencies = [
  "acelus-net",
  "acelus-rpc",
  "anyhow",
+ "async-trait",
  "dirs",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

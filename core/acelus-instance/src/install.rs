@@ -326,10 +326,10 @@ impl Installer {
         counters: &Counters,
         emit: &(impl Fn(Phase, Option<String>) + Sync),
     ) -> Result<()> {
-        let objects: Vec<&AssetObject> = index.objects.values().collect();
+        let objects: Vec<AssetObject> = index.objects.values().cloned().collect();
 
         futures::stream::iter(objects.into_iter().map(|object| async move {
-            self.install_asset(object, counters).await?;
+            self.install_asset(&object, counters).await?;
             emit(Phase::Download, Some(object.hash.clone()));
             Ok::<(), Error>(())
         }))

@@ -133,11 +133,14 @@ impl JavaProvisioner {
     }
 
     async fn download_files(&self, listing: &RuntimeFiles, root: &Path) -> Result<()> {
-        let entries: Vec<(&str, &RuntimeDownloads, bool)> = listing.regular_files().collect();
+        let entries: Vec<(String, RuntimeDownloads, bool)> = listing
+            .regular_files()
+            .map(|(path, downloads, executable)| (path.to_string(), downloads.clone(), executable))
+            .collect();
 
         futures::stream::iter(entries.into_iter().map(
             |(path, downloads, executable)| async move {
-                let target = resolve(root, path)?;
+                let target = resolve(root, &path)?;
 
                 if let Some(parent) = target.parent() {
                     std::fs::create_dir_all(parent).map_err(|source| Error::Io {
@@ -158,7 +161,7 @@ impl JavaProvisioner {
                         .to_file(&url, &integrity, &target)
                         .await
                         .map_err(|source| Error::Fetch {
-                            what: path.to_string(),
+                            what: path.clone(),
                             source: Box::new(source),
                         })?;
                 }
