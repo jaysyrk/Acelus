@@ -88,11 +88,15 @@ dependencies = [
 name = "acelus-launch"
 version = "0.1.0"
 dependencies = [
+ "acelus-auth",
  "acelus-instance",
+ "acelus-meta",
  "acelus-native-sys",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

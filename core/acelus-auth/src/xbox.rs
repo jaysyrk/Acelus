@@ -11,6 +11,7 @@ pub const MINECRAFT_RELYING_PARTY: &str = "rp://api.minecraftservices.com/";
 pub struct XboxToken {
     pub token: Secret,
     pub user_hash: String,
+    pub xuid: Option<String>,
 }
 
 impl XboxToken {
@@ -105,6 +106,8 @@ struct DisplayClaims {
 struct UserClaim {
     #[serde(default)]
     uhs: Option<String>,
+    #[serde(default)]
+    xid: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -203,16 +206,17 @@ impl XboxClient {
             .await
             .map_err(|source| Error::Malformed { source })?;
 
-        let user_hash = parsed
-            .display_claims
-            .xui
-            .into_iter()
-            .find_map(|claim| claim.uhs)
-            .ok_or(Error::MissingUserHash)?;
+        let mut user_hash = None;
+        let mut xuid = None;
+        for claim in parsed.display_claims.xui {
+            user_hash = user_hash.or(claim.uhs);
+            xuid = xuid.or(claim.xid);
+        }
 
         Ok(XboxToken {
             token: Secret::new(parsed.token),
-            user_hash,
+            user_hash: user_hash.ok_or(Error::MissingUserHash)?,
+            xuid,
         })
     }
 }
@@ -253,6 +257,7 @@ mod tests {
         let token = XboxToken {
             token: Secret::new("xsts-token-value"),
             user_hash: "1234567890".into(),
+            xuid: None,
         };
         assert_eq!(
             token.identity_token().expose(),
@@ -273,6 +278,7 @@ mod tests {
         let token = XboxToken {
             token: Secret::new("xsts-token-value"),
             user_hash: "1234567890".into(),
+            xuid: Some("2535416239104446".into()),
         };
         let rendered = format!("{token:?}");
         assert!(!rendered.contains("xsts-token-value"));

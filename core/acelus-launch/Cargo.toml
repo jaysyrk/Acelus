@@ -8,8 +8,15 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
+acelus-auth.workspace = true
 acelus-instance.workspace = true
+acelus-meta.workspace = true
 acelus-native-sys.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "io-util", "time"] }

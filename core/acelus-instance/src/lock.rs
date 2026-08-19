@@ -52,7 +52,14 @@ pub struct Lockfile {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loader: Option<LockLoader>,
     pub java: LockJava,
+    pub arguments: LockArguments,
     pub artifacts: Vec<LockArtifact>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LockArguments {
+    pub game: Vec<String>,
+    pub jvm: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -200,6 +207,10 @@ mod tests {
                 component: Some("java-runtime-epsilon".into()),
                 major_version: 25,
                 source: JavaSource::Mojang,
+            },
+            arguments: LockArguments {
+                game: vec!["--username".into(), "${auth_player_name}".into()],
+                jvm: vec!["-cp".into(), "${classpath}".into()],
             },
             artifacts,
         }

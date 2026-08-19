@@ -36,19 +36,26 @@ pub struct Account {
     pub minecraft_token: Secret,
     pub refresh_token: Option<Secret>,
     pub expires_in: u64,
+    pub xuid: Option<String>,
     pub entitlement_verified: bool,
     pub skin_url: Option<String>,
     pub cape_url: Option<String>,
 }
 
 impl Account {
-    pub fn from_parts(profile: Profile, session: minecraft::Session, tokens: &Tokens) -> Self {
+    pub fn from_parts(
+        profile: Profile,
+        session: minecraft::Session,
+        tokens: &Tokens,
+        xuid: Option<String>,
+    ) -> Self {
         Self {
             uuid: profile.dashed_uuid(),
             name: profile.name.clone(),
             minecraft_token: session.access_token,
             refresh_token: tokens.refresh_token.clone(),
             expires_in: session.expires_in,
+            xuid,
             entitlement_verified: true,
             skin_url: profile.active_skin().map(|t| t.url.clone()),
             cape_url: profile.active_cape().map(|t| t.url.clone()),
@@ -119,7 +126,12 @@ impl Authenticator {
 
         let profile = self.minecraft.profile(&session.access_token).await?;
 
-        Ok(Account::from_parts(profile, session, &tokens))
+        Ok(Account::from_parts(
+            profile,
+            session,
+            &tokens,
+            xsts_token.xuid,
+        ))
     }
 
     pub async fn login_with_device_code(&self, code: &DeviceCode) -> Result<Account> {
@@ -151,6 +163,7 @@ mod tests {
             minecraft_token: Secret::new("minecraft-access-token"),
             refresh_token: Some(Secret::new("microsoft-refresh-token")),
             expires_in: 86400,
+            xuid: Some("2535416239104446".into()),
             entitlement_verified: true,
             skin_url: None,
             cape_url: None,

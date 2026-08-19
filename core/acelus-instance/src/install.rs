@@ -8,7 +8,7 @@ use futures::StreamExt;
 use url::Url;
 
 use crate::extract;
-use crate::lock::{LockArtifact, LockExtract, Lockfile, Role, LOCK_VERSION};
+use crate::lock::{LockArguments, LockArtifact, LockExtract, Lockfile, Role, LOCK_VERSION};
 use crate::paths::{InstanceLayout, Paths};
 use crate::plan::{Plan, PlannedArtifact};
 
@@ -175,6 +175,10 @@ impl Installer {
                 component: plan.java.component.clone(),
                 major_version: plan.java.major_version,
                 source: plan.java.source,
+            },
+            arguments: LockArguments {
+                game: plan.arguments.game.clone(),
+                jvm: plan.arguments.jvm.clone(),
             },
             artifacts: locked,
         })

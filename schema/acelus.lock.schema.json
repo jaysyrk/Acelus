@@ -4,7 +4,13 @@
   "title": "acelus.lock",
   "description": "Fully resolved, reproducible description of a Minecraft instance. Every artifact is pinned by content hash, byte size and origin URL so the instance can be rebuilt bit-for-bit on any machine.",
   "type": "object",
-  "required": ["lockVersion", "minecraft", "java", "artifacts"],
+  "required": [
+    "lockVersion",
+    "minecraft",
+    "java",
+    "arguments",
+    "artifacts"
+  ],
   "additionalProperties": false,
   "properties": {
     "lockVersion": {
@@ -19,67 +25,166 @@
     "minecraft": {
       "description": "The resolved Minecraft version this instance runs.",
       "type": "object",
-      "required": ["id", "type", "manifestSha1", "mainClass"],
+      "required": [
+        "id",
+        "type",
+        "manifestSha1",
+        "mainClass"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "description": "Version identifier, for example 1.21.4.", "type": "string" },
+        "id": {
+          "description": "Version identifier, for example 1.21.4.",
+          "type": "string"
+        },
         "type": {
           "description": "Release channel reported by Mojang's version manifest.",
-          "enum": ["release", "snapshot", "old_beta", "old_alpha"]
+          "enum": [
+            "release",
+            "snapshot",
+            "old_beta",
+            "old_alpha"
+          ]
         },
         "manifestSha1": {
           "description": "SHA-1 of the version JSON as published by Mojang, used to detect upstream mutation.",
           "type": "string",
           "pattern": "^[0-9a-f]{40}$"
         },
-        "assetIndexId": { "description": "Identifier of the asset index this version uses.", "type": "string" },
-        "mainClass": { "description": "JVM entry point class.", "type": "string" },
-        "complianceLevel": { "description": "Mojang compliance level; 0 means the version predates modern launcher safety features.", "type": "integer" }
+        "assetIndexId": {
+          "description": "Identifier of the asset index this version uses.",
+          "type": "string"
+        },
+        "mainClass": {
+          "description": "JVM entry point class.",
+          "type": "string"
+        },
+        "complianceLevel": {
+          "description": "Mojang compliance level; 0 means the version predates modern launcher safety features.",
+          "type": "integer"
+        }
       }
     },
     "loader": {
       "description": "Mod loader layered on top of the vanilla version. Absent for a vanilla instance.",
       "type": "object",
-      "required": ["kind", "version"],
+      "required": [
+        "kind",
+        "version"
+      ],
       "additionalProperties": false,
       "properties": {
-        "kind": { "enum": ["fabric", "quilt", "neoforge", "forge"] },
-        "version": { "type": "string" },
-        "intermediaryVersion": { "description": "Intermediary mappings version, for Fabric and Quilt.", "type": "string" }
+        "kind": {
+          "enum": [
+            "fabric",
+            "quilt",
+            "neoforge",
+            "forge"
+          ]
+        },
+        "version": {
+          "type": "string"
+        },
+        "intermediaryVersion": {
+          "description": "Intermediary mappings version, for Fabric and Quilt.",
+          "type": "string"
+        }
       }
     },
     "java": {
       "description": "The Java runtime this instance must be launched with.",
       "type": "object",
-      "required": ["majorVersion", "source"],
+      "required": [
+        "majorVersion",
+        "source"
+      ],
       "additionalProperties": false,
       "properties": {
-        "component": { "description": "Mojang runtime component name, for example java-runtime-delta.", "type": "string" },
-        "majorVersion": { "description": "Required Java major version.", "type": "integer" },
+        "component": {
+          "description": "Mojang runtime component name, for example java-runtime-delta.",
+          "type": "string"
+        },
+        "majorVersion": {
+          "description": "Required Java major version.",
+          "type": "integer"
+        },
         "source": {
           "description": "Where the runtime is provisioned from. Mojang does not publish runtimes for every target, so Adoptium is the documented fallback.",
-          "enum": ["mojang", "adoptium", "system"]
+          "enum": [
+            "mojang",
+            "adoptium",
+            "system"
+          ]
+        }
+      }
+    },
+    "arguments": {
+      "description": "Argument templates already filtered for this instance's platform and features, before placeholder substitution. Pinned so the command line stays stable even if upstream metadata changes.",
+      "type": "object",
+      "required": [
+        "game",
+        "jvm"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "game": {
+          "description": "Arguments passed to the game after the main class.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "jvm": {
+          "description": "Arguments passed to the JVM before the main class.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
     "artifacts": {
       "description": "Every file the instance needs, keyed by its path relative to the instance root.",
       "type": "array",
-      "items": { "$ref": "#/$defs/artifact" }
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
     }
   },
   "$defs": {
     "artifact": {
       "type": "object",
-      "required": ["path", "role", "size", "blake3", "origin"],
+      "required": [
+        "path",
+        "role",
+        "size",
+        "blake3",
+        "origin"
+      ],
       "additionalProperties": false,
       "properties": {
-        "path": { "description": "Destination path relative to the instance root.", "type": "string" },
+        "path": {
+          "description": "Destination path relative to the instance root.",
+          "type": "string"
+        },
         "role": {
           "description": "What this artifact is, which determines how it is materialized and whether it joins the classpath.",
-          "enum": ["client", "library", "native", "asset", "logging-config", "mod", "runtime", "override"]
+          "enum": [
+            "client",
+            "library",
+            "native",
+            "asset",
+            "logging-config",
+            "mod",
+            "runtime",
+            "override"
+          ]
         },
-        "size": { "description": "Exact byte length. A mismatch fails verification before the hash is even checked.", "type": "integer", "minimum": 0 },
+        "size": {
+          "description": "Exact byte length. A mismatch fails verification before the hash is even checked.",
+          "type": "integer",
+          "minimum": 0
+        },
         "blake3": {
           "description": "Content-addressed store key. BLAKE3 is used internally because it is substantially faster than SHA-1 while remaining collision resistant.",
           "type": "string",
@@ -99,14 +204,22 @@
           "description": "URLs this artifact may be fetched from, in preference order. Hosts are checked against the allowlist before any request is made.",
           "type": "array",
           "minItems": 1,
-          "items": { "type": "string", "format": "uri" }
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
         },
         "extract": {
           "description": "Extraction directives for native archives that must be unpacked rather than placed verbatim.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "exclude": { "type": "array", "items": { "type": "string" } }
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         }
       }

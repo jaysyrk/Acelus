@@ -1,6 +1,6 @@
 use acelus_instance::lock::{
-    JavaSource, LoaderKind, LockArtifact, LockExtract, LockJava, LockLoader, LockMinecraft,
-    Lockfile, Role, LOCK_VERSION,
+    JavaSource, LoaderKind, LockArguments, LockArtifact, LockExtract, LockJava, LockLoader,
+    LockMinecraft, Lockfile, Role, LOCK_VERSION,
 };
 
 const SCHEMA: &str = include_str!("../../../schema/acelus.lock.schema.json");
@@ -44,6 +44,10 @@ fn minimal() -> Lockfile {
             component: Some("java-runtime-epsilon".into()),
             major_version: 25,
             source: JavaSource::Mojang,
+        },
+        arguments: LockArguments {
+            game: vec!["--username".into(), "${auth_player_name}".into()],
+            jvm: vec!["-cp".into(), "${classpath}".into()],
         },
         artifacts: Vec::new(),
     }
