@@ -2,7 +2,7 @@
   "name": "acelus-ui",
   "version": "0.1.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run sidecar && vite",
     "build": "npm run sidecar && tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
