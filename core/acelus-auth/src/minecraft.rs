@@ -23,8 +23,8 @@ pub enum Error {
     },
 
     #[error(
-        "the Minecraft services API refused this application; \
-         the Azure app is most likely still awaiting Mojang's approval, see docs/AZURE_SETUP.md"
+        "the Minecraft services API refused this application, which means Mojang has not \
+         approved it yet; request approval at https://aka.ms/mce-reviewappid"
     )]
     ApplicationNotApproved,
 

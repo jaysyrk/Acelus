@@ -36,6 +36,37 @@ fn not_found(error: impl std::fmt::Display) -> RpcError {
     RpcError::new(codes::NOT_FOUND, error.to_string())
 }
 
+fn auth_code(error: &acelus_auth::chain::Error) -> i32 {
+    use acelus_auth::chain::Error as Chain;
+    use acelus_auth::entitlement::Error as Entitlement;
+    use acelus_auth::microsoft::Error as Microsoft;
+    use acelus_auth::minecraft::Error as Minecraft;
+    use acelus_auth::xbox::Error as Xbox;
+
+    match error {
+        Chain::Xbox(Xbox::NoXboxAccount) => codes::XBOX_ACCOUNT_MISSING,
+        Chain::Xbox(Xbox::ChildAccount) => codes::XBOX_CHILD_ACCOUNT,
+        Chain::Xbox(Xbox::RegionUnavailable) => codes::XBOX_REGION_UNAVAILABLE,
+        Chain::Xbox(Xbox::Banned) => codes::XBOX_ACCOUNT_BANNED,
+        Chain::Xbox(Xbox::AdultVerificationRequired) => codes::XBOX_ADULT_VERIFICATION_REQUIRED,
+
+        Chain::Microsoft(Microsoft::ApplicationNotApproved)
+        | Chain::Minecraft(Minecraft::ApplicationNotApproved) => codes::AZURE_APP_UNAPPROVED,
+
+        Chain::Entitlement(Entitlement::NotEntitled) => codes::ENTITLEMENT_MISSING,
+        Chain::Entitlement(Entitlement::InvalidSignature { .. })
+        | Chain::Entitlement(Entitlement::MissingSignature) => codes::ENTITLEMENT_SIGNATURE_INVALID,
+
+        Chain::Minecraft(Minecraft::SessionExpired) => codes::AUTH_EXPIRED,
+
+        Chain::Microsoft(Microsoft::Transport { .. })
+        | Chain::Xbox(Xbox::Transport { .. })
+        | Chain::Minecraft(Minecraft::Transport { .. }) => codes::NETWORK,
+
+        _ => codes::AUTH_REQUIRED,
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct VersionListParams {
@@ -378,7 +409,7 @@ impl Rpc {
                     "account.loginComplete",
                     json!({
                         "jobId": waiting_job,
-                        "error": {"code": codes::AUTH_REQUIRED, "message": error.to_string()},
+                        "error": {"code": auth_code(&error), "message": error.to_string()},
                     }),
                 ),
             }
@@ -561,4 +592,74 @@ fn read_lockfile(layout: &InstanceLayout) -> Result<Lockfile, RpcError> {
     })?;
 
     Lockfile::parse(&bytes).map_err(internal)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use acelus_auth::chain::Error as Chain;
+    use acelus_auth::entitlement::Error as Entitlement;
+    use acelus_auth::microsoft::Error as Microsoft;
+    use acelus_auth::minecraft::Error as Minecraft;
+    use acelus_auth::xbox::Error as Xbox;
+
+    #[test]
+    fn every_xbox_refusal_reaches_the_client_as_its_own_code() {
+        for (error, expected) in [
+            (Xbox::NoXboxAccount, codes::XBOX_ACCOUNT_MISSING),
+            (Xbox::ChildAccount, codes::XBOX_CHILD_ACCOUNT),
+            (Xbox::RegionUnavailable, codes::XBOX_REGION_UNAVAILABLE),
+            (Xbox::Banned, codes::XBOX_ACCOUNT_BANNED),
+            (
+                Xbox::AdultVerificationRequired,
+                codes::XBOX_ADULT_VERIFICATION_REQUIRED,
+            ),
+        ] {
+            assert_eq!(
+                auth_code(&Chain::Xbox(error)),
+                expected,
+                "a client cannot tell the player what to do if every refusal looks the same"
+            );
+        }
+    }
+
+    #[test]
+    fn an_unapproved_azure_app_is_named_from_either_service_that_refuses_it() {
+        assert_eq!(
+            auth_code(&Chain::Microsoft(Microsoft::ApplicationNotApproved)),
+            codes::AZURE_APP_UNAPPROVED
+        );
+        assert_eq!(
+            auth_code(&Chain::Minecraft(Minecraft::ApplicationNotApproved)),
+            codes::AZURE_APP_UNAPPROVED
+        );
+    }
+
+    #[test]
+    fn an_unapproved_app_tells_the_player_where_to_ask_for_approval() {
+        let message = Chain::Minecraft(Minecraft::ApplicationNotApproved).to_string();
+        assert!(
+            message.contains("https://aka.ms/mce-reviewappid"),
+            "the only useful thing to say here is where to request approval, got: {message}"
+        );
+    }
+
+    #[test]
+    fn owning_the_game_and_proving_it_are_distinguished() {
+        assert_eq!(
+            auth_code(&Chain::Entitlement(Entitlement::NotEntitled)),
+            codes::ENTITLEMENT_MISSING
+        );
+        assert_eq!(
+            auth_code(&Chain::Entitlement(Entitlement::MissingSignature)),
+            codes::ENTITLEMENT_SIGNATURE_INVALID,
+            "an unsigned entitlement is a tampering signal, not a missing purchase"
+        );
+    }
+
+    #[test]
+    fn a_failure_with_no_specific_code_still_asks_for_a_sign_in() {
+        assert_eq!(auth_code(&Chain::TimedOut), codes::AUTH_REQUIRED);
+        assert_eq!(auth_code(&Chain::NoStoredCredentials), codes::AUTH_REQUIRED);
+    }
 }

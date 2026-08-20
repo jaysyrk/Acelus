@@ -34,8 +34,8 @@ pub enum Error {
     Declined,
 
     #[error(
-        "this Azure application is not approved for the Minecraft API; \
-         see docs/AZURE_SETUP.md"
+        "Mojang has not approved this Azure application yet; \
+         request approval at https://aka.ms/mce-reviewappid"
     )]
     ApplicationNotApproved,
 
