@@ -5,7 +5,13 @@ ALLOWED_PREFIXES = {
     ".rs": ("///", "//!"),
     ".zig": ("///", "//!"),
     ".go": ("//go:",),
+    ".ts": (),
+    ".css": (),
 }
+
+LINE_COMMENT = {".rs", ".zig", ".go", ".ts"}
+BLOCK_COMMENT = {".rs", ".go", ".ts", ".css"}
+BACKTICK_STRING = {".go", ".ts"}
 
 SKIP_DIRS = {".git", "target", "zig-out", ".zig-cache", "node_modules", "dist"}
 
@@ -41,7 +47,7 @@ def scan(text, suffix):
             i = skip_quoted(text, i, '"')
             continue
 
-        if ch == "`" and suffix == ".go":
+        if ch == "`" and suffix in BACKTICK_STRING:
             end = text.find("`", i + 1)
             segment = text[i:end if end != -1 else n]
             line += segment.count("\n")
@@ -65,14 +71,19 @@ def scan(text, suffix):
             line += consumed_lines
             continue
 
-        if text.startswith("//", i):
+        if ch == "/" and suffix == ".ts" and starts_regex(text, i):
+            i, consumed_lines = skip_regex(text, i)
+            line += consumed_lines
+            continue
+
+        if text.startswith("//", i) and suffix in LINE_COMMENT:
             rest = text[i:text.find("\n", i) if text.find("\n", i) != -1 else n]
             if not rest.startswith(allowed):
                 findings.append((line, rest.strip()))
             i += len(rest)
             continue
 
-        if text.startswith("/*", i) and suffix in (".rs", ".go"):
+        if text.startswith("/*", i) and suffix in BLOCK_COMMENT:
             findings.append((line, text[i:i + 40].split("\n")[0].strip()))
             block_depth = 1
             i += 2
@@ -81,6 +92,49 @@ def scan(text, suffix):
         i += 1
 
     return findings
+
+
+REGEX_PRECEDERS = set("(,=:[!&|?{};+-*%~^<>") | {"\n"}
+
+
+def starts_regex(text, i):
+    if text.startswith("//", i) or text.startswith("/*", i):
+        return False
+
+    j = i - 1
+    while j >= 0 and text[j] in " \t":
+        j -= 1
+    if j < 0:
+        return True
+    if text[j] in REGEX_PRECEDERS:
+        return True
+
+    word = ""
+    k = j
+    while k >= 0 and (text[k].isalpha() or text[k] == "_"):
+        word = text[k] + word
+        k -= 1
+    return word in {"return", "typeof", "case", "in", "of", "new", "delete", "void", "throw"}
+
+
+def skip_regex(text, i):
+    j = i + 1
+    in_class = False
+    while j < len(text):
+        ch = text[j]
+        if ch == "\\":
+            j += 2
+            continue
+        if ch == "\n":
+            return i + 1, 0
+        if ch == "[":
+            in_class = True
+        elif ch == "]":
+            in_class = False
+        elif ch == "/" and not in_class:
+            return j + 1, 0
+        j += 1
+    return i + 1, 0
 
 
 def skip_quoted(text, i, quote):

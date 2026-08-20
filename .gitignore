@@ -25,3 +25,7 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+__pycache__/
+ui/src-tauri/icon-source.png
+ui/src-tauri/gen/schemas/

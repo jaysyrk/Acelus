@@ -12,6 +12,7 @@ members = [
     "core/acelus-net",
     "core/acelus-rpc",
     "core/acelusd",
+    "ui/src-tauri",
     "xtask",
 ]
 
@@ -58,6 +59,9 @@ tempfile = "3"
 thiserror = "2"
 toml = "1"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "net", "process", "signal", "sync", "time"] }
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
+tauri-plugin-opener = "2"
 tokio-util = { version = "0.7", features = ["io"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
