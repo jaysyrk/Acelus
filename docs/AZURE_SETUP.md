@@ -45,9 +45,11 @@ restricts *Manage tenants* > *Create* to paid customers.
 6. **Redirect URI**: change the platform dropdown from *Web* to **Public client/native (mobile &
    desktop)** and enter `http://localhost`. Loopback needs no certificate.
 7. Click **Register**.
-8. On the **Overview** page that follows, copy the **Application (client) ID**. It sits above
-   *Object ID* and *Directory (tenant) ID*, which are different values and not the one you want.
-   There is no tenant ID to record: Acelus always uses `consumers`.
+8. On the **Overview** page that follows, copy two values, which sit near each other and are
+   easy to confuse. The **Application (client) ID** is the one Acelus is configured with. The
+   **Directory (tenant) ID** is asked for by the approval form in step 2, so record it now rather
+   than coming back. *Object ID* is a third value and is not used at all. Acelus itself never
+   sends a tenant id, always signing in against `consumers`.
 9. In the left sidebar under *Manage*, open **Authentication**, scroll to **Advanced settings**,
    and set **Allow public client flows** to **Yes**. Click **Save**. This enables the device code
    flow Acelus logs in with; without it login fails with `unauthorized_client`.
@@ -66,6 +68,12 @@ The ordering here is the part that trips people up, and it is deliberate:
 2. **Then submit <https://aka.ms/mce-reviewappid>.** Microsoft wants to see that the application has
    actually been used before they will review it. Submitting without a login attempt on record
    tends to go nowhere.
+
+   The form asks for the application id **and** the directory (tenant) id, an associated website,
+   and a justification. The justification is the field that decides the outcome, so say what the
+   application is, which endpoints it calls and why, and link to its source if it has any. A name
+   that implies the application is official, or that borrows the Minecraft or Mojang trademarks,
+   works against approval.
 
 Applications registered before this policy came into effect are grandfathered and keep working.
 New ones are not.
