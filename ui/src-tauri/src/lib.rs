@@ -34,11 +34,19 @@ fn daemon_binary() -> String {
 }
 
 async fn start_daemon() -> Result<()> {
-    std::process::Command::new(daemon_binary())
+    let mut command = std::process::Command::new(daemon_binary());
+    command
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map_err(|_| Error::NotRunning)?;
+        .stderr(std::process::Stdio::null());
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    command.spawn().map_err(|_| Error::NotRunning)?;
     Ok(())
 }
 

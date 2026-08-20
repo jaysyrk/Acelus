@@ -15,6 +15,20 @@ members = [
     "ui/src-tauri",
     "xtask",
 ]
+default-members = [
+    "core/acelus-auth",
+    "core/acelus-cas",
+    "core/acelus-content",
+    "core/acelus-diag",
+    "core/acelus-instance",
+    "core/acelus-launch",
+    "core/acelus-meta",
+    "core/acelus-native-sys",
+    "core/acelus-net",
+    "core/acelus-rpc",
+    "core/acelusd",
+    "xtask",
+]
 
 [workspace.package]
 version = "0.1.0"

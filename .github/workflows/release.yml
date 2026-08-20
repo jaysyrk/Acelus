@@ -1,0 +1,100 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag to publish, for example v0.1.0
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ !matrix.required }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            bundles: nsis
+            required: true
+          - name: linux
+            os: ubuntu-22.04
+            bundles: deb,appimage
+            required: true
+          - name: macos apple silicon
+            os: macos-latest
+            bundles: dmg
+            required: false
+          - name: macos intel
+            os: macos-13
+            bundles: dmg
+            required: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.16.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.name }}
+
+      - name: Install Linux desktop dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
+            libayatana-appindicator3-dev libdbus-1-dev pkg-config
+
+      - run: npm ci
+        working-directory: ui
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          ACELUS_DEFAULT_CLIENT_ID: ${{ secrets.ACELUS_DEFAULT_CLIENT_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: ui
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: Acelus ${{ github.event.inputs.tag || github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          args: --bundles ${{ matrix.bundles }}
+          releaseBody: |
+            Acelus is a Minecraft: Java Edition launcher that signs in through the real
+            Microsoft chain and verifies that the account owns the game. There is no
+            offline mode.
+
+            **Windows** — download the `.exe` setup. Windows will warn that the publisher
+            is unknown, because these builds are not code signed yet. Choose More info,
+            then Run anyway.
+
+            **Linux** — install the `.deb`, or make the `.AppImage` executable and run it.
+
+            **macOS** — open the `.dmg` and drag Acelus across. macOS will refuse it on
+            first launch because it is not notarized: right click the app, choose Open,
+            then Open again.
+
+            Nothing here is signed or notarized. Every warning above is that, and not a
+            sign anything is wrong.

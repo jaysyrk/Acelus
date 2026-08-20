@@ -98,10 +98,30 @@ Game files are never redistributed; they are fetched from Mojang's CDN at instal
 Requires Rust (stable), Go 1.24+, and Zig 0.16+. On Linux, credential storage uses the Secret
 Service, so `libdbus-1-dev` and `pkg-config` must be present.
 
+Most people should not build anything: install a package from
+[Releases](https://github.com/jaysyrk/Acelus/releases). Windows gets a setup executable, Linux a
+deb and an AppImage, macOS a dmg. Neither Windows nor macOS builds are signed yet, so both will
+warn on first launch.
+
+To build it yourself:
+
 ```
 cargo build --release
 (cd cli && go build -o ../target/release/acelus ./cmd/acelus)
 ```
+
+The desktop application builds separately, because it needs its own toolchain and bundles the
+daemon beside itself:
+
+```
+cd ui && npm install
+npm run tauri dev
+npm run tauri build
+```
+
+On Linux that also needs `webkit2gtk` and `gtk3` development packages. Set
+`ACELUS_DEFAULT_CLIENT_ID` when building if you are distributing to people who should never see
+an Azure portal; see [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md).
 
 That leaves `acelus` and `acelusd` side by side in `target/release`. The client starts the
 daemon itself, looking beside its own binary before falling back to PATH, so putting that one
