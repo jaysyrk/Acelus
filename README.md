@@ -8,13 +8,16 @@ your crash logs with more respect than the alternatives.
 
 ## Status
 
-The command line launcher works end to end. It resolves a version from Mojang, downloads and
-verifies every file, provisions the matching Java runtime, and starts the game under supervision.
+Installing works end to end. Acelus resolves a version from Mojang, downloads and verifies every
+file against its published digest, provisions the matching Java runtime, and writes a lockfile.
 Fabric and Quilt instances are resolved from the loaders' own metadata and merged into the same
-lockfile.
+lockfile. All of this is measured below on real hardware.
 
-Signing in additionally needs an Azure application approved by Mojang — see
-[docs/AZURE_SETUP.md](docs/AZURE_SETUP.md). Everything up to and including install works without one.
+The sign in chain runs against real Microsoft accounts through OAuth, Xbox Live and XSTS, and
+stops at the last step, where `api.minecraftservices.com` answers **403** until Mojang approves the
+Azure application — see [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md). Launching is gated behind a
+signature-verified entitlement and so waits on that approval; it has not yet run against a real
+account.
 
 ```
 acelus create Survival 1.21.11
@@ -115,8 +118,8 @@ cd native/procguard && zig build -Dtarget=x86_64-windows-gnu
 ```
 
 Running against real accounts additionally requires an Azure application approved by Mojang —
-see [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md). The auth chain is fully testable against recorded
-fixtures without one.
+see [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md). Without one the chain still runs to its last step
+and every stage is testable against recorded fixtures.
 
 ## Architecture
 
