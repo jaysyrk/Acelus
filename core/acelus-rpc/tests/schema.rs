@@ -35,6 +35,7 @@ fn every_code_the_schema_declares_exists_in_the_implementation() {
             "ENTITLEMENT_SIGNATURE_INVALID",
         ),
         (codes::AZURE_APP_UNAPPROVED, "AZURE_APP_UNAPPROVED"),
+        (codes::AZURE_APP_MISSING, "AZURE_APP_MISSING"),
         (codes::JAVA_UNAVAILABLE, "JAVA_UNAVAILABLE"),
         (codes::LOADER_UNSUPPORTED, "LOADER_UNSUPPORTED"),
         (codes::DEPENDENCY_CONFLICT, "DEPENDENCY_CONFLICT"),

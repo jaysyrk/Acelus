@@ -25,6 +25,7 @@ pub mod codes {
     pub const ENTITLEMENT_MISSING: i32 = -32017;
     pub const ENTITLEMENT_SIGNATURE_INVALID: i32 = -32018;
     pub const AZURE_APP_UNAPPROVED: i32 = -32019;
+    pub const AZURE_APP_MISSING: i32 = -32020;
 
     pub const JAVA_UNAVAILABLE: i32 = -32030;
     pub const LOADER_UNSUPPORTED: i32 = -32031;

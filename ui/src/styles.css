@@ -665,3 +665,21 @@ label {
     animation-duration: 2.4s;
   }
 }
+
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  color: var(--muted);
+}
+
+.steps li::marker {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.steps .code {
+  margin-top: 7px;
+}

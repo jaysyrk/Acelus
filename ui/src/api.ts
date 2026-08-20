@@ -31,6 +31,7 @@ export const codes = {
   entitlementMissing: -32017,
   entitlementSignatureInvalid: -32018,
   azureAppUnapproved: -32019,
+  azureAppMissing: -32020,
   notFound: -32001,
   alreadyExists: -32002,
   network: -32003,
@@ -52,6 +53,49 @@ export function emitDaemonEvent(event: DaemonEvent): void {
 
 function inTauri(): boolean {
   return "__TAURI_INTERNALS__" in window;
+}
+
+export async function openExternal(url: string): Promise<boolean> {
+  if (!inTauri()) {
+    window.open(url, "_blank", "noreferrer");
+    return true;
+  }
+  try {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return fallbackCopy(text);
+  }
+}
+
+function fallbackCopy(text: string): boolean {
+  const holder = document.createElement("textarea");
+  holder.value = text;
+  holder.setAttribute("readonly", "");
+  holder.style.position = "fixed";
+  holder.style.opacity = "0";
+  document.body.appendChild(holder);
+  holder.select();
+
+  let copied = false;
+  try {
+    copied = document.execCommand("copy");
+  } catch {
+    copied = false;
+  }
+
+  holder.remove();
+  return copied;
 }
 
 interface Backend {
@@ -114,6 +158,12 @@ function toRpcError(raw: unknown): RpcError {
 export function explain(error: unknown): { title: string; detail: string; link?: string } {
   const failure = toRpcError(error);
   switch (failure.code) {
+    case codes.azureAppMissing:
+      return {
+        title: "This copy of Acelus cannot sign in yet",
+        detail:
+          "Signing in to Minecraft needs a Microsoft application that Mojang has approved, and this build was not given one. Whoever built or shared this copy has to set that up; there is nothing to fix on your side.",
+      };
     case codes.azureAppUnapproved:
       return {
         title: "Mojang has not approved this application yet",

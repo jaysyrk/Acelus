@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "npm run sidecar && tsc --noEmit && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "sidecar": "node scripts/sidecar.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.4",
@@ -13,7 +14,8 @@
     "vite": "^8.2.1"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.11.1"
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-opener": "^2.5.4"
   },
   "private": true,
   "type": "module"

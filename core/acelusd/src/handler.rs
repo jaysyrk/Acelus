@@ -385,7 +385,7 @@ impl Rpc {
     async fn account_begin_login(&self, notifier: Notifier) -> Result<Value, RpcError> {
         let authenticator = self.daemon.authenticator.as_ref().ok_or_else(|| {
             RpcError::new(
-                codes::AZURE_APP_UNAPPROVED,
+                codes::AZURE_APP_MISSING,
                 crate::state::AccountProblem::NoClientId.message(),
             )
         })?;

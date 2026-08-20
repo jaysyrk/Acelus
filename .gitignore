@@ -29,3 +29,4 @@ Thumbs.db
 __pycache__/
 ui/src-tauri/icon-source.png
 ui/src-tauri/gen/schemas/
+ui/src-tauri/binaries/

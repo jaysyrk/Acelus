@@ -142,7 +142,9 @@ impl AccountProblem {
             }
             AccountProblem::Unreadable => "the account registry could not be read".into(),
             AccountProblem::NoClientId => format!(
-                "no Azure client id is configured; set {DEFAULT_CLIENT_ID_ENV} or see docs/AZURE_SETUP.md"
+                "this copy of Acelus has no Microsoft application id, so it cannot sign anyone in; \
+                 whoever built it needs to set {DEFAULT_CLIENT_ID_ENV} or client_id in config.toml, \
+                 as docs/AZURE_SETUP.md describes"
             ),
             AccountProblem::Refresh(detail) => {
                 format!("the stored session could not be renewed: {detail}")
@@ -181,8 +183,11 @@ pub fn client_id() -> Option<String> {
         .map(|path| read_config(&path))
         .and_then(|c| c.client_id);
 
+    let baked = option_env!("ACELUS_DEFAULT_CLIENT_ID").map(str::to_string);
+
     from_env
         .or(from_file)
+        .or(baked)
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
 }

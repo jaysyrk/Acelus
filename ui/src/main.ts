@@ -4,7 +4,7 @@ import { h, icons, svg } from "./dom";
 import { applyTheme, currentTheme, nextTheme, themeLabel, type Theme } from "./theme";
 import { renderAccounts } from "./views/accounts";
 import { renderConsole, watchLogs } from "./views/console";
-import { renderInstances, watchInstalls } from "./views/instances";
+import { renderInstances, watchInstalls, whenAccountsNeeded } from "./views/instances";
 
 type Route = "instances" | "accounts" | "console";
 
@@ -173,6 +173,7 @@ async function start(): Promise<void> {
   });
 
   watchInstalls();
+  whenAccountsNeeded(go("accounts"));
   watchLogs(redrawIfViewing("console"));
 
   setState(await connect());

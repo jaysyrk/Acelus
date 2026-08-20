@@ -86,9 +86,20 @@ The client ID is configuration, never a compile-time constant. Acelus reads it i
 2. `client_id` in `$XDG_CONFIG_HOME/acelus/config.toml`, which on Linux means
    `~/.config/acelus/config.toml`
 
-There is no built-in default. Acelus ships without a client ID, because an approved application
-belongs to whoever registered it, and baking one in would hand every user's logins to that
-registration.
+3. `ACELUS_DEFAULT_CLIENT_ID` baked in at compile time, for builds you distribute
+
+The repository ships without a client ID, because an approved application belongs to whoever
+registered it and publishing one would route strangers' logins through that registration.
+
+The third source is what to use when handing Acelus to people who should never see any of this.
+Build with the variable set and the id is compiled in, so the application signs in out of the box:
+
+```
+ACELUS_DEFAULT_CLIENT_ID=<your approved id> cargo build --release
+```
+
+Without it, signing in fails with `AZURE_APP_MISSING`, which says the build was never given an
+application rather than blaming the person trying to use it.
 
 ```toml
 client_id = "00000000-1111-2222-3333-444444444444"

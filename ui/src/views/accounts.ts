@@ -1,4 +1,4 @@
-import { explain, onDaemonEvent, rpc } from "../api";
+import { copyText, explain, onDaemonEvent, openExternal, rpc } from "../api";
 import { clear, h, icons, svg } from "../dom";
 
 interface Account {
@@ -137,34 +137,71 @@ function beginLogin(reload: () => void): void {
     }
 
     clear(body);
+
+    const opened = h("span", { class: "data dim" }, begun.verificationUri.replace(/^https?:\/\//, ""));
+    const copyLabel = h("span", {}, "Copy code");
+
     body.appendChild(
-      h("p", { style: "margin:0;color:var(--muted)" }, "Open this page and enter the code:"),
+      h(
+        "ol",
+        { class: "steps" },
+        h(
+          "li",
+          {},
+          "Open the Microsoft sign in page.",
+          h(
+            "div",
+            { class: "row", style: "margin-top:7px" },
+            h(
+              "button",
+              {
+                class: "btn accent",
+                onclick: async () => {
+                  if (!(await openExternal(begun.verificationUri))) {
+                    opened.textContent = `Could not open a browser. Go to ${begun.verificationUri}`;
+                  }
+                },
+              },
+              svg(icons.external, 13),
+              "Open sign in page",
+            ),
+            opened,
+          ),
+        ),
+        h(
+          "li",
+          {},
+          "Enter this code when it asks for one.",
+          h("div", { class: "code" }, begun.userCode),
+          h(
+            "div",
+            { class: "row", style: "justify-content:center" },
+            h(
+              "button",
+              {
+                class: "btn quiet",
+                onclick: async () => {
+                  copyLabel.textContent = (await copyText(begun.userCode))
+                    ? "Copied"
+                    : "Select the code above";
+                },
+              },
+              svg(icons.copy, 13),
+              copyLabel,
+            ),
+          ),
+        ),
+        h("li", {}, "Sign in with the Microsoft account that owns Minecraft."),
+      ),
     );
-    body.appendChild(h("div", { class: "code" }, begun.userCode));
+
     body.appendChild(
       h(
         "div",
-        { class: "row", style: "justify-content:center" },
-        h(
-          "a",
-          { class: "btn", href: begun.verificationUri, target: "_blank", rel: "noreferrer" },
-          svg(icons.external, 13),
-          begun.verificationUri.replace(/^https?:\/\//, ""),
-        ),
-        h(
-          "button",
-          {
-            class: "btn quiet",
-            onclick: () => void navigator.clipboard?.writeText(begun.userCode),
-          },
-          svg(icons.copy, 13),
-          "Copy code",
-        ),
+        { class: "row", style: "color:var(--faint);font-size:12.5px" },
+        h("span", { class: "spin" }),
+        "Waiting for you to finish signing in",
       ),
-    );
-    body.appendChild(
-      h("div", { class: "row", style: "justify-content:center;color:var(--faint);font-size:12.5px" },
-        h("span", { class: "spin" }), "Waiting for the sign in to finish"),
     );
 
     stop = onDaemonEvent((event) => {
@@ -179,9 +216,9 @@ function beginLogin(reload: () => void): void {
       body.appendChild(
         h(
           "div",
-          { class: "notice" },
+          { class: "note" },
           h("strong", {}, `Signed in as ${account?.name ?? "your account"}`),
-          "Acelus stored the refresh token in your system keyring.",
+          "Your sign in is stored in the system keyring, not on disk.",
         ),
       );
     });
@@ -199,8 +236,12 @@ function failure(error: unknown): HTMLElement {
       ? h(
           "div",
           { style: "margin-top:8px" },
-          h("a", { class: "btn", href: detail.link, target: "_blank", rel: "noreferrer" },
-            svg(icons.external, 13), "Open the approval form"),
+          h(
+            "button",
+            { class: "btn", onclick: () => void openExternal(detail.link as string) },
+            svg(icons.external, 13),
+            "Open the approval form",
+          ),
         )
       : null,
   );

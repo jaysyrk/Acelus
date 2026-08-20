@@ -1,4 +1,4 @@
-import { explain, onDaemonEvent, rpc } from "../api";
+import { explain, onDaemonEvent, openExternal, rpc } from "../api";
 import { ago, bytes, clear, h, icons, svg } from "../dom";
 import { confirmAction } from "./confirm";
 import { openCreateSheet } from "./create";
@@ -35,9 +35,15 @@ let sortBy: Column = "played";
 let ascending = false;
 let filter = "";
 let known: Instance[] = [];
+let accountsReady = true;
 let repaint: (() => void) | null = null;
+let goAccounts: (() => void) | null = null;
 let refresh: (() => void) | null = null;
 let pending = false;
+
+export function whenAccountsNeeded(open: () => void): void {
+  goAccounts = open;
+}
 
 export function watchInstalls(): void {
   onDaemonEvent((event) => {
@@ -103,6 +109,13 @@ export async function renderInstances(
     return;
   }
 
+  try {
+    const reply = await rpc<{ accounts: unknown[] }>("account.list");
+    accountsReady = (reply.accounts ?? []).length > 0;
+  } catch {
+    accountsReady = true;
+  }
+
   const paint = () => draw(body, refetch, onLaunched);
   repaint = paint;
   refresh = refetch;
@@ -124,13 +137,31 @@ function draw(body: HTMLElement, refetch: () => void, onLaunched: () => void): v
 
   const table = h("div", {});
 
+  if (!accountsReady && instances.length > 0) {
+    table.appendChild(
+      h(
+        "div",
+        { class: "note", style: "margin:12px" },
+        h("strong", {}, "Sign in before you play"),
+        "Acelus checks that your Microsoft account owns Minecraft before it starts the game. ",
+        h(
+          "button",
+          { class: "btn", style: "margin-top:8px", onclick: () => goAccounts?.() },
+          "Go to Accounts",
+        ),
+      ),
+    );
+  }
+
   if (shown.length === 0) {
     table.appendChild(
       h(
         "div",
         { class: "blank" },
         h("strong", {}, instances.length === 0 ? "No instances" : "Nothing matches that filter"),
-        instances.length === 0 ? "Create one and Acelus fetches and verifies what it needs." : null,
+        instances.length === 0
+          ? "Create one with New, and Acelus downloads and checks everything it needs."
+          : null,
       ),
     );
     swap(body, table);
@@ -233,6 +264,10 @@ function row(instance: Instance, refetch: () => void, onLaunched: () => void): H
     {
       class: "btn accent",
       onclick: async (event: Event) => {
+        if (!accountsReady) {
+          goAccounts?.();
+          return;
+        }
         (event.currentTarget as HTMLButtonElement).disabled = true;
         try {
           await rpc("launch.run", { id: instance.id });
@@ -333,7 +368,18 @@ export function problem(error: unknown): HTMLElement {
     { class: "note bad", style: "margin:12px" },
     h("strong", {}, detail.title),
     detail.detail,
-    detail.link ? h("div", {}, h("a", { href: detail.link, target: "_blank" }, detail.link)) : null,
+    detail.link
+      ? h(
+          "div",
+          { style: "margin-top:8px" },
+          h(
+            "button",
+            { class: "btn", onclick: () => void openExternal(detail.link as string) },
+            svg(icons.external, 13),
+            "Open",
+          ),
+        )
+      : null,
   );
 }
 
