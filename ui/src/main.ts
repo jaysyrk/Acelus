@@ -172,7 +172,7 @@ async function start(): Promise<void> {
     }
   });
 
-  watchInstalls(redrawIfViewing("instances"));
+  watchInstalls();
   watchLogs(redrawIfViewing("console"));
 
   setState(await connect());

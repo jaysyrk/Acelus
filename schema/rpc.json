@@ -289,7 +289,7 @@
         "path": { "type": "string" },
         "installed": { "description": "Whether every artifact in the lockfile is present and verified.", "type": "boolean" },
         "lastPlayed": { "type": ["string", "null"] },
-        "sizeOnDisk": { "description": "Bytes uniquely attributable to this instance, excluding objects shared with others.", "type": "integer" }
+        "contentSize": { "description": "Total size of everything the lockfile pins. Files shared with other instances are counted here even though they are stored once, because how much of that sharing the filesystem achieves is not portably measurable.", "type": "integer" }
       }
     },
     "quickPlay": {

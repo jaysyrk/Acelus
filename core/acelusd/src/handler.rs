@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use acelus_auth::store::now_seconds;
 use acelus_instance::lock::Lockfile;
-use acelus_instance::{InstanceLayout, LoaderRequest, Progress, Role};
+use acelus_instance::{InstanceLayout, LoaderKind, LoaderRequest, Progress, Role};
 use acelus_launch::invocation::{self, LaunchRequest, MemorySettings, QuickPlay};
 use acelus_launch::session::DEFAULT_LOG_CAPACITY;
 use acelus_launch::Session;
@@ -78,6 +78,13 @@ struct VersionListParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct LoaderListParams {
+    kind: LoaderKind,
+    version: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct CreateParams {
     name: String,
     version: String,
@@ -130,6 +137,7 @@ impl Handler for Rpc {
         match method {
             "daemon.info" => self.daemon_info(),
             "version.list" => self.version_list(params(params_value)?).await,
+            "loader.list" => self.loader_list(params(params_value)?).await,
             "instance.create" => self.instance_create(params(params_value)?),
             "instance.list" => self.instance_list(),
             "instance.delete" => self.instance_delete(params(params_value)?),
@@ -204,6 +212,28 @@ impl Rpc {
         }}))
     }
 
+    async fn loader_list(&self, request: LoaderListParams) -> Result<Value, RpcError> {
+        let profiles = self
+            .daemon
+            .loaders
+            .profiles(request.kind, &request.version)
+            .await
+            .map_err(|error| RpcError::new(codes::NETWORK, error.to_string()))?;
+
+        let loaders: Vec<Value> = profiles
+            .iter()
+            .map(|profile| {
+                json!({
+                    "version": profile.loader_version,
+                    "stable": !profile.loader_version.contains('-'),
+                    "intermediaryVersion": profile.intermediary_version,
+                })
+            })
+            .collect();
+
+        Ok(json!({ "loaders": loaders }))
+    }
+
     fn instance_create(&self, request: CreateParams) -> Result<Value, RpcError> {
         let descriptor = self
             .daemon
@@ -253,6 +283,7 @@ impl Rpc {
             "loader": descriptor.loader,
             "installed": layout.lockfile().is_file(),
             "lastPlayed": descriptor.last_played,
+            "contentSize": read_lockfile(&layout).ok().map(|lockfile| lockfile.total_size()),
         })
     }
 

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Lets the window receive daemon notifications and open links in the system browser.",
+  "windows": ["main"],
+  "permissions": ["core:default", "opener:default"]
+}

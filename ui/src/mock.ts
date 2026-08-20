@@ -9,7 +9,7 @@ const instances: Json[] = [
     path: "/home/jaysyrk/.local/share/acelus/instances/modded",
     installed: true,
     lastPlayed: 1755640000,
-    sizeOnDisk: 0,
+    contentSize: 411041792,
   },
   {
     id: "quilted",
@@ -19,7 +19,7 @@ const instances: Json[] = [
     path: "/home/jaysyrk/.local/share/acelus/instances/quilted",
     installed: true,
     lastPlayed: null,
-    sizeOnDisk: 0,
+    contentSize: 411041792,
   },
   {
     id: "survival",
@@ -28,7 +28,7 @@ const instances: Json[] = [
     path: "/home/jaysyrk/.local/share/acelus/instances/survival",
     installed: true,
     lastPlayed: 1755500000,
-    sizeOnDisk: 402653184,
+    contentSize: 402653184,
   },
   {
     id: "snapshot-test",
@@ -37,7 +37,7 @@ const instances: Json[] = [
     path: "/home/jaysyrk/.local/share/acelus/instances/snapshot-test",
     installed: false,
     lastPlayed: null,
-    sizeOnDisk: 0,
+    contentSize: 0,
   },
 ];
 
@@ -146,7 +146,7 @@ export function mockBackend() {
             path: `/home/jaysyrk/.local/share/acelus/instances/${id}`,
             installed: false,
             lastPlayed: null,
-            sizeOnDisk: 0,
+            contentSize: 0,
           };
           instances.unshift(created);
           return { instance: created };

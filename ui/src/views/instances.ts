@@ -16,7 +16,7 @@ export interface Instance {
   path: string;
   installed: boolean;
   lastPlayed: number | null;
-  sizeOnDisk?: number;
+  contentSize?: number;
 }
 
 interface Progress {
@@ -34,22 +34,39 @@ const active = new Map<string, Progress>();
 let sortBy: Column = "played";
 let ascending = false;
 let filter = "";
+let known: Instance[] = [];
+let repaint: (() => void) | null = null;
+let refresh: (() => void) | null = null;
+let pending = false;
 
-export function watchInstalls(rerender: () => void): void {
+export function watchInstalls(): void {
   onDaemonEvent((event) => {
     if (event.method !== "install.progress") return;
     const id = String(event.params["jobId"] ?? "");
-    if (String(event.params["phase"] ?? "") === "done") active.delete(id);
-    else
-      active.set(id, {
-        phase: String(event.params["phase"] ?? ""),
-        completedBytes: Number(event.params["completedBytes"] ?? 0),
-        totalBytes: Number(event.params["totalBytes"] ?? 0),
-        completedFiles: Number(event.params["completedFiles"] ?? 0),
-        totalFiles: Number(event.params["totalFiles"] ?? 0),
-        reusedBytes: Number(event.params["reusedBytes"] ?? 0),
-      });
-    rerender();
+    const phase = String(event.params["phase"] ?? "");
+    if (phase === "done") {
+      active.delete(id);
+      refresh?.();
+      return;
+    }
+    active.set(id, {
+      phase,
+      completedBytes: Number(event.params["completedBytes"] ?? 0),
+      totalBytes: Number(event.params["totalBytes"] ?? 0),
+      completedFiles: Number(event.params["completedFiles"] ?? 0),
+      totalFiles: Number(event.params["totalFiles"] ?? 0),
+      reusedBytes: Number(event.params["reusedBytes"] ?? 0),
+    });
+    schedule();
+  });
+}
+
+function schedule(): void {
+  if (pending || !repaint) return;
+  pending = true;
+  requestAnimationFrame(() => {
+    pending = false;
+    repaint?.();
   });
 }
 
@@ -58,9 +75,8 @@ export async function renderInstances(
   body: HTMLElement,
   onLaunched: () => void,
 ): Promise<void> {
-  const reload = () => void renderInstances(toolbar, body, onLaunched);
+  const refetch = () => void renderInstances(toolbar, body, onLaunched);
   clear(toolbar);
-  clear(body);
 
   const search = h("input", {
     type: "search",
@@ -68,7 +84,7 @@ export async function renderInstances(
     value: filter,
     oninput: (event: Event) => {
       filter = (event.target as HTMLInputElement).value;
-      reload();
+      paint();
     },
   }) as HTMLInputElement;
 
@@ -76,17 +92,25 @@ export async function renderInstances(
   toolbar.appendChild(search);
   toolbar.appendChild(h("span", { class: "spacer" }));
   toolbar.appendChild(
-    h("button", { class: "btn accent", onclick: () => openCreateSheet(reload) }, svg(icons.plus, 13), "New"),
+    h("button", { class: "btn accent", onclick: () => openCreateSheet(refetch) }, svg(icons.plus, 13), "New"),
   );
 
-  let instances: Instance[] = [];
   try {
-    instances = (await rpc<{ instances: Instance[] }>("instance.list")).instances ?? [];
+    known = (await rpc<{ instances: Instance[] }>("instance.list")).instances ?? [];
   } catch (error) {
+    clear(body);
     body.appendChild(problem(error));
     return;
   }
 
+  const paint = () => draw(body, refetch, onLaunched);
+  repaint = paint;
+  refresh = refetch;
+  paint();
+}
+
+function draw(body: HTMLElement, refetch: () => void, onLaunched: () => void): void {
+  const instances = known;
   const needle = filter.trim().toLowerCase();
   const shown = instances
     .filter(
@@ -98,8 +122,10 @@ export async function renderInstances(
     )
     .sort(compare);
 
+  const table = h("div", {});
+
   if (shown.length === 0) {
-    body.appendChild(
+    table.appendChild(
       h(
         "div",
         { class: "blank" },
@@ -107,6 +133,7 @@ export async function renderInstances(
         instances.length === 0 ? "Create one and Acelus fetches and verifies what it needs." : null,
       ),
     );
+    swap(body, table);
     return;
   }
 
@@ -115,7 +142,7 @@ export async function renderInstances(
     ["name", "Instance", false],
     ["version", "Version", false],
     ["loader", "Loader", false],
-    ["size", "Disk", true],
+    ["size", "Size", true],
     ["played", "Last played", true],
   ] as Array<[Column, string, boolean]>) {
     head.appendChild(
@@ -131,7 +158,7 @@ export async function renderInstances(
               sortBy = key;
               ascending = key === "name" || key === "version";
             }
-            reload();
+            draw(body, refetch, onLaunched);
           },
         },
         label,
@@ -141,9 +168,17 @@ export async function renderInstances(
   head.appendChild(h("th", { class: "grow" }));
 
   const rows = h("tbody", {});
-  for (const instance of shown) rows.appendChild(row(instance, reload, onLaunched));
+  for (const instance of shown) rows.appendChild(row(instance, refetch, onLaunched));
 
-  body.appendChild(h("table", {}, h("thead", {}, head), rows));
+  table.appendChild(h("table", {}, h("thead", {}, head), rows));
+  swap(body, table);
+}
+
+function swap(body: HTMLElement, next: HTMLElement): void {
+  const top = body.scrollTop;
+  clear(body);
+  body.appendChild(next);
+  body.scrollTop = top;
 }
 
 function compare(a: Instance, b: Instance): number {
@@ -156,13 +191,13 @@ function compare(a: Instance, b: Instance): number {
     case "loader":
       return (a.loader?.kind ?? "").localeCompare(b.loader?.kind ?? "") * direction;
     case "size":
-      return ((a.sizeOnDisk ?? 0) - (b.sizeOnDisk ?? 0)) * direction;
+      return ((a.contentSize ?? 0) - (b.contentSize ?? 0)) * direction;
     default:
       return ((a.lastPlayed ?? 0) - (b.lastPlayed ?? 0)) * direction;
   }
 }
 
-function row(instance: Instance, reload: () => void, onLaunched: () => void): HTMLElement {
+function row(instance: Instance, refetch: () => void, onLaunched: () => void): HTMLElement {
   const progress = active.get(instance.id);
 
   if (progress) {
@@ -203,7 +238,7 @@ function row(instance: Instance, reload: () => void, onLaunched: () => void): HT
           await rpc("launch.run", { id: instance.id });
           onLaunched();
         } catch (error) {
-          reload();
+          refetch();
           document.body.appendChild(floatingProblem(error));
         }
       },
@@ -252,7 +287,7 @@ function row(instance: Instance, reload: () => void, onLaunched: () => void): HT
     h(
       "td",
       { class: "data right" },
-      instance.installed ? (instance.sizeOnDisk ? bytes(instance.sizeOnDisk) : "shared") : "—",
+      instance.installed && instance.contentSize ? bytes(instance.contentSize) : "—",
     ),
     h(
       "td",
@@ -279,7 +314,7 @@ function row(instance: Instance, reload: () => void, onLaunched: () => void): HT
                 destructive: true,
                 onConfirm: async () => {
                   await rpc("instance.delete", { id: instance.id, keepUserData: false });
-                  reload();
+                  refetch();
                 },
               }),
           },
