@@ -211,6 +211,10 @@ main {
   flex: 1;
 }
 
+.measure {
+  max-width: 1080px;
+}
+
 button {
   font: inherit;
   cursor: default;
@@ -298,6 +302,7 @@ select:focus,
 
 table {
   width: 100%;
+  max-width: 1080px;
   border-collapse: collapse;
   font-size: 12.5px;
 }

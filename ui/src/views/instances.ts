@@ -141,7 +141,7 @@ function draw(body: HTMLElement, refetch: () => void, onLaunched: () => void): v
     table.appendChild(
       h(
         "div",
-        { class: "note", style: "margin:12px" },
+        { class: "note measure", style: "margin:12px" },
         h("strong", {}, "Sign in before you play"),
         "Acelus checks that your Microsoft account owns Minecraft before it starts the game. ",
         h(
