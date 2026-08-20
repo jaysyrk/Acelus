@@ -9,26 +9,15 @@ interface Account {
   expired: boolean;
 }
 
-export async function renderAccounts(root: HTMLElement): Promise<void> {
-  const reload = () => void renderAccounts(root);
+export async function renderAccounts(toolbar: HTMLElement, root: HTMLElement): Promise<void> {
+  const reload = () => void renderAccounts(toolbar, root);
+  clear(toolbar);
   clear(root);
 
-  root.appendChild(
-    h(
-      "div",
-      { class: "page-head" },
-      h(
-        "div",
-        {},
-        h("h1", {}, "Accounts"),
-        h(
-          "p",
-          { class: "page-sub" },
-          "Real Microsoft sign in. Refresh tokens live in the system keyring, never on disk.",
-        ),
-      ),
-      h("button", { class: "btn primary", onclick: () => beginLogin(reload) }, svg(icons.plus, 15), "Add account"),
-    ),
+  toolbar.appendChild(h("h1", {}, "Accounts"));
+  toolbar.appendChild(h("span", { class: "spacer" }));
+  toolbar.appendChild(
+    h("button", { class: "btn accent", onclick: () => beginLogin(reload) }, svg(icons.plus, 13), "Sign in"),
   );
 
   let accounts: Account[] = [];
@@ -46,10 +35,9 @@ export async function renderAccounts(root: HTMLElement): Promise<void> {
     root.appendChild(
       h(
         "div",
-        { class: "empty" },
-        h("h2", {}, "No accounts signed in"),
-        h("p", {}, "Acelus refuses to launch without a verified copy of the game."),
-        h("button", { class: "btn primary", onclick: () => beginLogin(reload) }, "Add account"),
+        { class: "blank" },
+        h("strong", {}, "No accounts"),
+        "Launching needs an account that owns the game, proven by signature.",
       ),
     );
     return;
@@ -69,19 +57,19 @@ export async function renderAccounts(root: HTMLElement): Promise<void> {
         h(
           "div",
           { style: "flex:1;min-width:0" },
-          h("div", { class: "account-name" }, account.name),
-          h("div", { class: "account-uuid" }, account.uuid),
+          h("div", { style: "font-weight:550" }, account.name),
+          h("div", { class: "data dim", style: "font-size:11px" }, account.uuid),
         ),
         account.entitlementVerified
-          ? h("span", { class: "badge" }, "owns the game")
-          : h("span", { class: "badge muted" }, "unverified"),
-        account.expired ? h("span", { class: "badge muted" }, "session expired") : null,
+          ? h("span", { class: "pill on" }, "owns the game")
+          : h("span", { class: "pill" }, "unverified"),
+        account.expired ? h("span", { class: "pill" }, "expired") : null,
         account.uuid === active
-          ? h("span", { class: "badge" }, "active")
+          ? h("span", { class: "pill on" }, "active")
           : h(
               "button",
               {
-                class: "btn ghost",
+                class: "btn quiet",
                 onclick: async () => {
                   await rpc("account.select", { uuid: account.uuid });
                   reload();
@@ -92,14 +80,14 @@ export async function renderAccounts(root: HTMLElement): Promise<void> {
         h(
           "button",
           {
-            class: "btn ghost danger",
+            class: "btn quiet bad",
             title: "Sign out and erase stored credentials",
             onclick: async () => {
               await rpc("account.remove", { uuid: account.uuid });
               reload();
             },
           },
-          svg(icons.trash, 15),
+          svg(icons.trash, 13),
         ),
       ),
     );
@@ -109,16 +97,16 @@ export async function renderAccounts(root: HTMLElement): Promise<void> {
 
 function beginLogin(reload: () => void): void {
   const scrim = h("div", { class: "scrim" });
-  const body = h("div", { class: "dialog-body" });
+  const body = h("div", { class: "sheet-body" });
 
   const dialog = h(
     "div",
-    { class: "dialog", style: "width:min(460px,100%)" },
-    h("div", { class: "dialog-head" }, h("h2", {}, "Add account")),
+    { class: "sheet", style: "width:min(440px,100%)" },
+    h("div", { class: "sheet-head" }, "Sign in"),
     body,
     h(
       "div",
-      { class: "dialog-foot" },
+      { class: "sheet-foot" },
       h("button", { class: "btn", onclick: () => close() }, "Close"),
     ),
   );
@@ -130,7 +118,7 @@ function beginLogin(reload: () => void): void {
     reload();
   };
 
-  body.appendChild(h("div", { class: "row" }, h("span", { class: "spin" }), "Asking Microsoft for a code..."));
+  body.appendChild(h("div", { class: "row" }, h("span", { class: "spin" }), "Asking Microsoft for a code"));
 
   scrim.appendChild(dialog);
   scrim.addEventListener("click", (event) => {
@@ -150,9 +138,9 @@ function beginLogin(reload: () => void): void {
 
     clear(body);
     body.appendChild(
-      h("p", { style: "margin:0;color:var(--muted);font-size:13px" }, "Open this page and enter the code:"),
+      h("p", { style: "margin:0;color:var(--muted)" }, "Open this page and enter the code:"),
     );
-    body.appendChild(h("div", { class: "code-box" }, begun.userCode));
+    body.appendChild(h("div", { class: "code" }, begun.userCode));
     body.appendChild(
       h(
         "div",
@@ -160,16 +148,16 @@ function beginLogin(reload: () => void): void {
         h(
           "a",
           { class: "btn", href: begun.verificationUri, target: "_blank", rel: "noreferrer" },
-          svg(icons.external, 15),
+          svg(icons.external, 13),
           begun.verificationUri.replace(/^https?:\/\//, ""),
         ),
         h(
           "button",
           {
-            class: "btn ghost",
+            class: "btn quiet",
             onclick: () => void navigator.clipboard?.writeText(begun.userCode),
           },
-          svg(icons.copy, 15),
+          svg(icons.copy, 13),
           "Copy code",
         ),
       ),
@@ -204,7 +192,7 @@ function failure(error: unknown): HTMLElement {
   const detail = explain(error);
   return h(
     "div",
-    { class: "notice bad" },
+    { class: "note bad" },
     h("strong", {}, detail.title),
     detail.detail,
     detail.link
@@ -212,7 +200,7 @@ function failure(error: unknown): HTMLElement {
           "div",
           { style: "margin-top:8px" },
           h("a", { class: "btn", href: detail.link, target: "_blank", rel: "noreferrer" },
-            svg(icons.external, 15), "Open the approval form"),
+            svg(icons.external, 13), "Open the approval form"),
         )
       : null,
   );

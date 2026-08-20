@@ -1,5 +1,5 @@
 import { rpc } from "../api";
-import { clear, h, icons, svg } from "../dom";
+import { clear, h } from "../dom";
 
 interface Version {
   id: string;
@@ -14,7 +14,7 @@ interface LoaderBuild {
 
 type LoaderChoice = "none" | "fabric" | "quilt";
 
-export function openCreateDialog(onCreated: () => void): void {
+export function openCreateSheet(onCreated: () => void): void {
   let versions: Version[] = [];
   let chosenVersion = "";
   let loader: LoaderChoice = "none";
@@ -25,7 +25,7 @@ export function openCreateDialog(onCreated: () => void): void {
   let busy = false;
 
   const scrim = h("div", { class: "scrim" });
-  const list = h("div", { class: "picker-list" });
+  const list = h("div", { class: "list" });
   const loaderSlot = h("div", {});
   const footNote = h("div", { style: "flex:1" });
 
@@ -44,7 +44,7 @@ export function openCreateDialog(onCreated: () => void): void {
     },
   }) as HTMLInputElement;
 
-  const createButton = h("button", { class: "btn primary", onclick: () => void create() }, "Create");
+  const createButton = h("button", { class: "btn accent", onclick: () => void create() }, "Create");
 
   function refreshFooter(): void {
     const ready = nameInput.value.trim().length > 0 && chosenVersion.length > 0 && !busy;
@@ -62,7 +62,7 @@ export function openCreateDialog(onCreated: () => void): void {
       const row = h(
         "button",
         {
-          class: "picker-row",
+          class: "list-row",
           "aria-selected": version.id === chosenVersion,
           onclick: () => {
             chosenVersion = version.id;
@@ -85,7 +85,7 @@ export function openCreateDialog(onCreated: () => void): void {
   function renderLoader(): void {
     clear(loaderSlot);
 
-    const segmented = h("div", { class: "segmented" });
+    const segmented = h("div", { class: "choice" });
     for (const choice of ["none", "fabric", "quilt"] as LoaderChoice[]) {
       segmented.appendChild(
         h(
@@ -171,12 +171,12 @@ export function openCreateDialog(onCreated: () => void): void {
 
   const dialog = h(
     "div",
-    { class: "dialog" },
-    h("div", { class: "dialog-head" }, h("h2", {}, "New instance")),
+    { class: "sheet" },
+    h("div", { class: "sheet-head" }, "New instance"),
     h(
       "div",
-      { class: "dialog-body" },
-      h("div", {}, h("label", {}, "Name"), nameInput),
+      { class: "sheet-body" },
+      h("div", { class: "field" }, h("label", {}, "Name"), nameInput),
       h(
         "div",
         {},
@@ -200,13 +200,13 @@ export function openCreateDialog(onCreated: () => void): void {
         h("div", { style: "height:8px" }),
         search,
         h("div", { style: "height:8px" }),
-        h("div", { class: "picker" }, list),
+        list,
       ),
       loaderSlot,
     ),
     h(
       "div",
-      { class: "dialog-foot" },
+      { class: "sheet-foot" },
       footNote,
       h("button", { class: "btn", onclick: () => scrim.remove() }, "Cancel"),
       createButton,
@@ -233,4 +233,3 @@ export function openCreateDialog(onCreated: () => void): void {
   })();
 }
 
-export const createIcon = () => svg(icons.plus, 15);

@@ -1,7 +1,7 @@
-import { explain, onDaemonEvent, rpc, type Json } from "../api";
+import { explain, onDaemonEvent, rpc } from "../api";
 import { ago, bytes, clear, h, icons, svg } from "../dom";
 import { confirmAction } from "./confirm";
-import { openCreateDialog } from "./create";
+import { openCreateSheet } from "./create";
 
 interface Loader {
   kind: string;
@@ -28,201 +28,254 @@ interface Progress {
   reusedBytes: number;
 }
 
+type Column = "name" | "version" | "loader" | "size" | "played";
+
 const active = new Map<string, Progress>();
+let sortBy: Column = "played";
+let ascending = false;
+let filter = "";
 
 export function watchInstalls(rerender: () => void): void {
   onDaemonEvent((event) => {
     if (event.method !== "install.progress") return;
     const id = String(event.params["jobId"] ?? "");
-    const phase = String(event.params["phase"] ?? "");
-
-    if (phase === "done") {
-      active.delete(id);
-    } else {
+    if (String(event.params["phase"] ?? "") === "done") active.delete(id);
+    else
       active.set(id, {
-        phase,
+        phase: String(event.params["phase"] ?? ""),
         completedBytes: Number(event.params["completedBytes"] ?? 0),
         totalBytes: Number(event.params["totalBytes"] ?? 0),
         completedFiles: Number(event.params["completedFiles"] ?? 0),
         totalFiles: Number(event.params["totalFiles"] ?? 0),
         reusedBytes: Number(event.params["reusedBytes"] ?? 0),
       });
-    }
     rerender();
   });
 }
 
-export async function renderInstances(root: HTMLElement, onLaunched: (id: string) => void): Promise<void> {
-  const reload = () => void renderInstances(root, onLaunched);
-  clear(root);
+export async function renderInstances(
+  toolbar: HTMLElement,
+  body: HTMLElement,
+  onLaunched: () => void,
+): Promise<void> {
+  const reload = () => void renderInstances(toolbar, body, onLaunched);
+  clear(toolbar);
+  clear(body);
 
-  const head = h(
-    "div",
-    { class: "page-head" },
-    h(
-      "div",
-      {},
-      h("h1", {}, "Instances"),
-      h("p", { class: "page-sub" }, "Every instance is a real directory you can open and read."),
-    ),
-    h(
-      "button",
-      { class: "btn primary", onclick: () => openCreateDialog(reload) },
-      svg(icons.plus, 15),
-      "New instance",
-    ),
+  const search = h("input", {
+    type: "search",
+    placeholder: "Filter",
+    value: filter,
+    oninput: (event: Event) => {
+      filter = (event.target as HTMLInputElement).value;
+      reload();
+    },
+  }) as HTMLInputElement;
+
+  toolbar.appendChild(h("h1", {}, "Instances"));
+  toolbar.appendChild(search);
+  toolbar.appendChild(h("span", { class: "spacer" }));
+  toolbar.appendChild(
+    h("button", { class: "btn accent", onclick: () => openCreateSheet(reload) }, svg(icons.plus, 13), "New"),
   );
-  root.appendChild(head);
 
   let instances: Instance[] = [];
   try {
-    const reply = await rpc<{ instances: Instance[] }>("instance.list");
-    instances = reply.instances ?? [];
+    instances = (await rpc<{ instances: Instance[] }>("instance.list")).instances ?? [];
   } catch (error) {
-    root.appendChild(problem(error));
+    body.appendChild(problem(error));
     return;
   }
 
-  if (instances.length === 0) {
-    root.appendChild(
+  const needle = filter.trim().toLowerCase();
+  const shown = instances
+    .filter(
+      (instance) =>
+        !needle ||
+        instance.name.toLowerCase().includes(needle) ||
+        instance.version.includes(needle) ||
+        (instance.loader?.kind ?? "").includes(needle),
+    )
+    .sort(compare);
+
+  if (shown.length === 0) {
+    body.appendChild(
       h(
         "div",
-        { class: "empty" },
-        h("h2", {}, "No instances yet"),
-        h("p", {}, "Create one and Acelus will fetch and verify everything it needs."),
-        h(
-          "button",
-          { class: "btn primary", onclick: () => openCreateDialog(reload) },
-          svg(icons.plus, 15),
-          "New instance",
-        ),
+        { class: "blank" },
+        h("strong", {}, instances.length === 0 ? "No instances" : "Nothing matches that filter"),
+        instances.length === 0 ? "Create one and Acelus fetches and verifies what it needs." : null,
       ),
     );
     return;
   }
 
-  const grid = h("div", { class: "grid" });
-  for (const instance of instances) grid.appendChild(card(instance, reload, onLaunched));
-  root.appendChild(grid);
+  const head = h("tr", {});
+  for (const [key, label, right] of [
+    ["name", "Instance", false],
+    ["version", "Version", false],
+    ["loader", "Loader", false],
+    ["size", "Disk", true],
+    ["played", "Last played", true],
+  ] as Array<[Column, string, boolean]>) {
+    head.appendChild(
+      h(
+        "th",
+        {
+          class: right ? "sortable right" : "sortable",
+          style: right ? "text-align:right" : "",
+          "aria-sort": sortBy === key ? (ascending ? "ascending" : "descending") : false,
+          onclick: () => {
+            if (sortBy === key) ascending = !ascending;
+            else {
+              sortBy = key;
+              ascending = key === "name" || key === "version";
+            }
+            reload();
+          },
+        },
+        label,
+      ),
+    );
+  }
+  head.appendChild(h("th", { class: "grow" }));
+
+  const rows = h("tbody", {});
+  for (const instance of shown) rows.appendChild(row(instance, reload, onLaunched));
+
+  body.appendChild(h("table", {}, h("thead", {}, head), rows));
 }
 
-function card(instance: Instance, reload: () => void, onLaunched: (id: string) => void): HTMLElement {
+function compare(a: Instance, b: Instance): number {
+  const direction = ascending ? 1 : -1;
+  switch (sortBy) {
+    case "name":
+      return a.name.localeCompare(b.name) * direction;
+    case "version":
+      return a.version.localeCompare(b.version, undefined, { numeric: true }) * direction;
+    case "loader":
+      return (a.loader?.kind ?? "").localeCompare(b.loader?.kind ?? "") * direction;
+    case "size":
+      return ((a.sizeOnDisk ?? 0) - (b.sizeOnDisk ?? 0)) * direction;
+    default:
+      return ((a.lastPlayed ?? 0) - (b.lastPlayed ?? 0)) * direction;
+  }
+}
+
+function row(instance: Instance, reload: () => void, onLaunched: () => void): HTMLElement {
   const progress = active.get(instance.id);
-
-  const tags = h(
-    "div",
-    { class: "meta" },
-    h("span", { class: "tag" }, instance.version),
-    instance.loader
-      ? h("span", { class: "tag loader" }, `${instance.loader.kind} ${instance.loader.version ?? ""}`.trim())
-      : null,
-    instance.installed
-      ? h(
-          "span",
-          { class: "tag", title: "Bytes unique to this instance, excluding anything shared" },
-          instance.sizeOnDisk ? bytes(instance.sizeOnDisk) : "shared",
-        )
-      : null,
-  );
-
-  const body = h(
-    "div",
-    { class: "card" },
-    h(
-      "div",
-      { class: "card-top" },
-      h("div", {}, h("h3", { class: "card-name" }, instance.name), tags),
-    ),
-  );
 
   if (progress) {
     const fraction = progress.totalBytes > 0 ? progress.completedBytes / progress.totalBytes : 0;
-    body.appendChild(
-      h("div", { class: "progress" }, h("span", { style: `width:${Math.round(fraction * 100)}%` })),
-    );
-    body.appendChild(
+    return h(
+      "tr",
+      {},
+      h("td", { class: "name" }, instance.name),
+      h("td", { class: "data" }, instance.version),
       h(
-        "div",
-        { class: "progress-detail" },
-        h("span", {}, `${progress.phase} ${progress.completedFiles}/${progress.totalFiles}`),
+        "td",
+        { colspan: 3 },
         h(
-          "span",
-          {},
+          "div",
+          { class: "row" },
+          h("span", { class: "bar" }, h("span", { style: `width:${Math.round(fraction * 100)}%` })),
+          h(
+            "span",
+            { class: "data" },
+            `${progress.phase} ${progress.completedFiles}/${progress.totalFiles}`,
+          ),
           progress.reusedBytes > 0
-            ? `${bytes(progress.reusedBytes)} reused`
-            : bytes(progress.completedBytes),
+            ? h("span", { class: "data dim" }, `${bytes(progress.reusedBytes)} reused`)
+            : null,
         ),
       ),
+      h("td", { class: "actions grow" }),
     );
-    return body;
   }
 
-  const state = h(
-    "span",
-    { class: "state" },
-    instance.installed ? ago(instance.lastPlayed) : "not installed yet",
+  const play = h(
+    "button",
+    {
+      class: "btn accent",
+      onclick: async (event: Event) => {
+        (event.currentTarget as HTMLButtonElement).disabled = true;
+        try {
+          await rpc("launch.run", { id: instance.id });
+          onLaunched();
+        } catch (error) {
+          reload();
+          document.body.appendChild(floatingProblem(error));
+        }
+      },
+    },
+    svg(icons.play, 12),
+    "Play",
   );
 
-  const action = instance.installed
-    ? h(
-        "button",
-        {
-          class: "btn primary",
-          onclick: async (event: Event) => {
-            const button = event.currentTarget as HTMLButtonElement;
-            button.disabled = true;
-            try {
-              await rpc("launch.run", { id: instance.id });
-              onLaunched(instance.id);
-            } catch (error) {
-              button.disabled = false;
-              body.appendChild(problem(error));
-            }
-          },
-        },
-        svg(icons.play, 14),
-        "Play",
-      )
-    : h(
-        "button",
-        {
-          class: "btn primary",
-          onclick: async (event: Event) => {
-            (event.currentTarget as HTMLButtonElement).disabled = true;
-            active.set(instance.id, {
-              phase: "resolve",
-              completedBytes: 0,
-              totalBytes: 0,
-              completedFiles: 0,
-              totalFiles: 0,
-              reusedBytes: 0,
-            });
-            await rpc("install.run", { id: instance.id });
-          },
-        },
-        svg(icons.download, 14),
-        "Install",
-      );
+  const install = h(
+    "button",
+    {
+      class: "btn",
+      onclick: async (event: Event) => {
+        (event.currentTarget as HTMLButtonElement).disabled = true;
+        active.set(instance.id, {
+          phase: "resolve",
+          completedBytes: 0,
+          totalBytes: 0,
+          completedFiles: 0,
+          totalFiles: 0,
+          reusedBytes: 0,
+        });
+        await rpc("install.run", { id: instance.id });
+      },
+    },
+    svg(icons.download, 12),
+    "Install",
+  );
 
-  body.appendChild(
+  return h(
+    "tr",
+    {},
+    h("td", { class: "name" }, instance.name),
+    h("td", { class: "data" }, instance.version),
     h(
-      "div",
-      { class: "card-foot" },
-      state,
+      "td",
+      {},
+      instance.loader
+        ? h(
+            "span",
+            { class: "pill on" },
+            `${instance.loader.kind}${instance.loader.version ? ` ${instance.loader.version}` : ""}`,
+          )
+        : h("span", { class: "data dim" }, "vanilla"),
+    ),
+    h(
+      "td",
+      { class: "data right" },
+      instance.installed ? (instance.sizeOnDisk ? bytes(instance.sizeOnDisk) : "shared") : "—",
+    ),
+    h(
+      "td",
+      { class: "data right dim" },
+      instance.installed ? ago(instance.lastPlayed) : "not installed",
+    ),
+    h(
+      "td",
+      { class: "actions grow" },
       h(
         "div",
-        { class: "row" },
+        { class: "row", style: "justify-content:flex-end" },
         h(
           "button",
           {
-            class: "btn ghost danger",
-            title: "Delete this instance",
+            class: "btn quiet bad",
+            title: "Delete",
             onclick: () =>
               confirmAction({
-                title: `Delete ${instance.name}?`,
+                title: `Delete ${instance.name}`,
                 detail:
-                  "The instance directory is removed, including worlds and screenshots inside it. Files shared with other instances stay in the object store.",
-                confirmLabel: "Delete instance",
+                  "Removes the instance directory, including any worlds and screenshots in it. Files shared with other instances stay in the object store.",
+                confirmLabel: "Delete",
                 destructive: true,
                 onConfirm: async () => {
                   await rpc("instance.delete", { id: instance.id, keepUserData: false });
@@ -230,27 +283,28 @@ function card(instance: Instance, reload: () => void, onLaunched: (id: string) =
                 },
               }),
           },
-          svg(icons.trash, 15),
+          svg(icons.trash, 13),
         ),
-        action,
+        instance.installed ? play : install,
       ),
     ),
   );
-
-  return body;
 }
 
 export function problem(error: unknown): HTMLElement {
   const detail = explain(error);
   return h(
     "div",
-    { class: "notice bad" },
+    { class: "note bad", style: "margin:12px" },
     h("strong", {}, detail.title),
     detail.detail,
     detail.link ? h("div", {}, h("a", { href: detail.link, target: "_blank" }, detail.link)) : null,
   );
 }
 
-export function instanceJson(instance: Instance): Json {
-  return instance as unknown as Json;
+function floatingProblem(error: unknown): HTMLElement {
+  const node = problem(error);
+  node.setAttribute("style", "position:fixed;right:14px;bottom:14px;max-width:420px;z-index:50");
+  setTimeout(() => node.remove(), 9000);
+  return node;
 }

@@ -13,7 +13,7 @@ export function confirmAction(options: {
   const confirm = h(
     "button",
     {
-      class: options.destructive ? "btn danger" : "btn primary",
+      class: options.destructive ? "btn bad" : "btn accent",
       onclick: async (event: Event) => {
         (event.currentTarget as HTMLButtonElement).disabled = true;
         await options.onConfirm();
@@ -26,14 +26,14 @@ export function confirmAction(options: {
   scrim.appendChild(
     h(
       "div",
-      { class: "dialog", style: "width:min(430px,100%)" },
-      h("div", { class: "dialog-head" }, h("h2", {}, options.title)),
+      { class: "sheet", style: "width:min(420px,100%)" },
+      h("div", { class: "sheet-head" }, options.title),
       h(
         "div",
-        { class: "dialog-body" },
-        h("p", { style: "margin:0;color:var(--muted);font-size:13.5px" }, options.detail),
+        { class: "sheet-body" },
+        h("p", { style: "margin:0;color:var(--muted)" }, options.detail),
       ),
-      h("div", { class: "dialog-foot" }, h("button", { class: "btn", onclick: close }, "Cancel"), confirm),
+      h("div", { class: "sheet-foot" }, h("button", { class: "btn", onclick: close }, "Cancel"), confirm),
     ),
   );
 

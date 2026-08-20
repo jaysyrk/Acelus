@@ -1,61 +1,52 @@
-import { connect } from "./api";
+import { connect, rpc } from "./api";
 import "./styles.css";
 import { h, icons, svg } from "./dom";
+import { applyTheme, currentTheme, nextTheme, themeLabel, type Theme } from "./theme";
 import { renderAccounts } from "./views/accounts";
 import { renderConsole, watchLogs } from "./views/console";
 import { renderInstances, watchInstalls } from "./views/instances";
-import { applyTheme, currentTheme, nextTheme, themeLabel, type Theme } from "./theme";
 
 type Route = "instances" | "accounts" | "console";
 
-const routes: Array<{ id: Route; label: string; icon: string }> = [
-  { id: "instances", label: "Instances", icon: icons.boxes },
-  { id: "accounts", label: "Accounts", icon: icons.user },
-  { id: "console", label: "Console", icon: icons.terminal },
-];
+const order: Route[] = ["instances", "accounts", "console"];
+const labels: Record<Route, string> = {
+  instances: "Instances",
+  accounts: "Accounts",
+  console: "Console",
+};
+const glyphs: Record<Route, string> = {
+  instances: icons.boxes,
+  accounts: icons.user,
+  console: icons.terminal,
+};
 
 let current: Route = routeFromHash();
 let live = false;
+let theme: Theme = currentTheme();
+
+const toolbar = h("div", { class: "toolbar" });
+const body = h("div", { class: "scroll" });
+const navButtons = new Map<Route, HTMLButtonElement>();
+const counts = new Map<Route, HTMLElement>();
+const stateDot = h("span", { class: "dot" });
+const stateText = h("span", {}, "connecting");
 
 function routeFromHash(): Route {
   const name = location.hash.replace(/^#\/?/, "");
-  return routes.some((route) => route.id === name) ? (name as Route) : "instances";
+  return order.includes(name as Route) ? (name as Route) : "instances";
 }
 
-const main = h("main", {});
-const navButtons = new Map<Route, HTMLButtonElement>();
-const statusDot = h("span", { class: "dot" });
-const statusText = h("span", {}, "connecting");
-
-let theme: Theme = currentTheme();
-const themeButton = h(
-  "button",
-  {
-    class: "nav-item",
-    title: "Switch between system, dark and light",
-    onclick: () => {
-      theme = nextTheme(theme);
-      applyTheme(theme);
-      themeLabelNode.textContent = themeLabel(theme);
-    },
-  },
-  svg(icons.contrast, 17),
-) as HTMLButtonElement;
-const themeLabelNode = h("span", {}, themeLabel(theme));
-themeButton.appendChild(themeLabelNode);
-
-function mark(): void {
+function draw(): void {
   for (const [id, button] of navButtons) {
     if (id === current) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
   }
-}
 
-function draw(): void {
-  mark();
-  if (current === "instances") void renderInstances(main, go("console"));
-  else if (current === "accounts") void renderAccounts(main);
-  else void renderConsole(main);
+  if (current === "instances") void renderInstances(toolbar, body, go("console"));
+  else if (current === "accounts") void renderAccounts(toolbar, body);
+  else void renderConsole(toolbar, body);
+
+  void refreshCounts();
 }
 
 function go(route: Route): () => void {
@@ -73,19 +64,43 @@ function redrawIfViewing(route: Route): () => void {
   };
 }
 
-function brandMark(): SVGSVGElement {
+async function refreshCounts(): Promise<void> {
+  try {
+    const instances = await rpc<{ instances: unknown[] }>("instance.list");
+    setCount("instances", instances.instances?.length ?? 0);
+  } catch {
+    setCount("instances", null);
+  }
+  try {
+    const accounts = await rpc<{ accounts: unknown[] }>("account.list");
+    setCount("accounts", accounts.accounts?.length ?? 0);
+  } catch {
+    setCount("accounts", null);
+  }
+  try {
+    const sessions = await rpc<{ sessions: unknown[] }>("session.list");
+    setCount("console", sessions.sessions?.length ?? 0);
+  } catch {
+    setCount("console", null);
+  }
+}
+
+function setCount(route: Route, value: number | null): void {
+  const node = counts.get(route);
+  if (node) node.textContent = value === null || value === 0 ? "" : String(value);
+}
+
+function mark(): SVGSVGElement {
   const element = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   element.setAttribute("viewBox", "0 0 24 24");
-  element.setAttribute("width", "26");
-  element.setAttribute("height", "26");
 
-  const shades = ["#2a7a60", "#38b184", "#50e7ac"];
+  const shades = ["var(--faint)", "var(--muted)", "var(--accent)"];
   shades.forEach((fill, index) => {
     const shape = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    const drop = (shades.length - 1 - index) * 3.1;
+    const drop = (shades.length - 1 - index) * 3.2;
     shape.setAttribute(
       "d",
-      `M12 ${3.4 + drop} L20.4 ${18.6 + drop} H16.6 L12 ${9.6 + drop} L7.4 ${18.6 + drop} H3.6 Z`,
+      `M12 ${3.2 + drop} L20.6 ${18.6 + drop} H16.8 L12 ${9.4 + drop} L7.2 ${18.6 + drop} H3.4 Z`,
     );
     shape.setAttribute("fill", fill);
     element.appendChild(shape);
@@ -94,34 +109,50 @@ function brandMark(): SVGSVGElement {
   return element;
 }
 
-function sidebar(): HTMLElement {
-  const nav = h(
-    "aside",
-    { class: "sidebar" },
-    h("div", { class: "brand" }, brandMark(), h("span", { class: "brand-name" }, "Acelus")),
-  );
+function rail(): HTMLElement {
+  const nav = h("aside", { class: "rail" }, h("div", { class: "wordmark" }, mark(), "Acelus"));
 
-  for (const route of routes) {
+  for (const route of order) {
+    const count = h("span", { class: "count" });
+    counts.set(route, count);
     const button = h(
       "button",
-      { class: "nav-item", onclick: go(route.id) },
-      svg(route.icon, 17),
-      route.label,
+      { class: "nav-item", onclick: go(route) },
+      svg(glyphs[route], 14),
+      labels[route],
+      count,
     ) as HTMLButtonElement;
-    navButtons.set(route.id, button);
+    navButtons.set(route, button);
     nav.appendChild(button);
   }
 
-  nav.appendChild(h("div", { class: "nav-spacer" }));
-  nav.appendChild(themeButton);
-  nav.appendChild(h("div", { class: "daemon-state" }, statusDot, statusText));
+  nav.appendChild(h("div", { class: "rail-spacer" }));
+
+  const themeText = h("span", {}, themeLabel(theme));
+  nav.appendChild(
+    h(
+      "button",
+      {
+        class: "nav-item",
+        onclick: () => {
+          theme = nextTheme(theme);
+          applyTheme(theme);
+          themeText.textContent = themeLabel(theme);
+        },
+      },
+      svg(icons.contrast, 14),
+      themeText,
+    ),
+  );
+
+  nav.appendChild(h("div", { class: "rail-foot" }, stateDot, stateText));
   return nav;
 }
 
-function setStatus(connected: boolean): void {
+function setState(connected: boolean): void {
   live = connected;
-  statusDot.className = `dot ${connected ? "live" : "down"}`;
-  statusText.textContent = connected ? "acelusd running" : "acelusd unavailable";
+  stateDot.className = `dot ${connected ? "live" : "down"}`;
+  stateText.textContent = connected ? "acelusd" : "no daemon";
 }
 
 async function start(): Promise<void> {
@@ -130,8 +161,8 @@ async function start(): Promise<void> {
   const app = document.getElementById("app");
   if (!app) return;
 
-  app.appendChild(sidebar());
-  app.appendChild(main);
+  app.appendChild(rail());
+  app.appendChild(h("main", {}, toolbar, body));
 
   window.addEventListener("hashchange", () => {
     const route = routeFromHash();
@@ -144,17 +175,15 @@ async function start(): Promise<void> {
   watchInstalls(redrawIfViewing("instances"));
   watchLogs(redrawIfViewing("console"));
 
-  setStatus(await connect());
+  setState(await connect());
   draw();
 
-  if (!live) {
-    window.setInterval(async () => {
-      if (!live) {
-        setStatus(await connect());
-        if (live) draw();
-      }
-    }, 3000);
-  }
+  window.setInterval(async () => {
+    if (!live) {
+      setState(await connect());
+      if (live) draw();
+    }
+  }, 3000);
 }
 
 void start();

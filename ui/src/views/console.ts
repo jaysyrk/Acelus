@@ -26,9 +26,10 @@ export function watchLogs(rerender: () => void): void {
   });
 }
 
-export async function renderConsole(root: HTMLElement): Promise<void> {
-  const reload = () => void renderConsole(root);
+export async function renderConsole(toolbar: HTMLElement, root: HTMLElement): Promise<void> {
+  const reload = () => void renderConsole(toolbar, root);
   const wasPinned = pinnedToBottom(root);
+  clear(toolbar);
   clear(root);
 
   let sessions: Session[] = [];
@@ -39,79 +40,62 @@ export async function renderConsole(root: HTMLElement): Promise<void> {
     sessions = [];
   }
 
-  root.appendChild(
-    h(
-      "div",
-      { class: "page-head" },
-      h(
-        "div",
-        {},
-        h("h1", {}, "Console"),
-        h("p", { class: "page-sub" }, "The game's output, captured while it runs."),
-      ),
-    ),
-  );
+  toolbar.appendChild(h("h1", {}, "Console"));
 
   if (sessions.length === 0) {
+    toolbar.appendChild(h("span", { class: "spacer" }));
     root.appendChild(
-      h(
-        "div",
-        { class: "empty" },
-        h("h2", {}, "Nothing is running"),
-        h("p", {}, "Launch an instance and its output will stream here."),
-      ),
+      h("div", { class: "blank" }, h("strong", {}, "Nothing running"), "Launch an instance and its output lands here."),
     );
     return;
   }
 
-  for (const session of sessions) {
-    root.appendChild(
-      h(
-        "div",
-        { class: "session-bar" },
-        h("span", { class: "spin" }),
-        h("strong", {}, session.instanceId),
-        h("span", { class: "tag" }, `pid ${session.pid}`),
-        h("span", { style: "flex:1" }),
-        h(
-          "button",
-          {
-            class: "btn ghost",
-            onclick: () => {
-              buffers.delete(session.sessionId);
-              reload();
-            },
-          },
-          svg(icons.refresh, 15),
-          "Clear",
-        ),
-        h(
-          "button",
-          {
-            class: "btn danger",
-            onclick: async () => {
-              await rpc("session.stop", { sessionId: session.sessionId });
-              reload();
-            },
-          },
-          svg(icons.stop, 14),
-          "Stop",
-        ),
-      ),
-    );
+  const session = sessions[0];
+  if (!session) return;
 
-    const pane = h("div", { class: "console" });
-    for (const line of buffers.get(session.sessionId) ?? []) {
-      pane.appendChild(h("div", { class: /error|exception|caused by/i.test(line) ? "err" : "" }, line));
-    }
-    root.appendChild(pane);
+  toolbar.appendChild(h("span", { class: "spin" }));
+  toolbar.appendChild(h("span", { class: "data" }, session.instanceId));
+  toolbar.appendChild(h("span", { class: "pill" }, `pid ${session.pid}`));
+  toolbar.appendChild(h("span", { class: "spacer" }));
+  toolbar.appendChild(
+    h(
+      "button",
+      {
+        class: "btn quiet",
+        onclick: () => {
+          buffers.delete(session.sessionId);
+          reload();
+        },
+      },
+      svg(icons.refresh, 13),
+      "Clear",
+    ),
+  );
+  toolbar.appendChild(
+    h(
+      "button",
+      {
+        class: "btn bad",
+        onclick: async () => {
+          await rpc("session.stop", { sessionId: session.sessionId });
+          reload();
+        },
+      },
+      svg(icons.stop, 12),
+      "Stop",
+    ),
+  );
 
-    if (wasPinned) pane.scrollTop = pane.scrollHeight;
+  const pane = h("div", { class: "console" });
+  for (const line of buffers.get(session.sessionId) ?? []) {
+    pane.appendChild(h("div", { class: /error|exception|caused by/i.test(line) ? "err" : "" }, line));
   }
+  root.appendChild(pane);
+
+  if (wasPinned) root.scrollTop = root.scrollHeight;
 }
 
 function pinnedToBottom(root: HTMLElement): boolean {
-  const pane = root.querySelector(".console");
-  if (!pane) return true;
-  return pane.scrollHeight - pane.scrollTop - pane.clientHeight < 60;
+  if (!root.querySelector(".console")) return true;
+  return root.scrollHeight - root.scrollTop - root.clientHeight < 60;
 }
