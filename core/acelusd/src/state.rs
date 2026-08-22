@@ -53,7 +53,7 @@ impl Daemon {
             installer: Installer::new(fetcher.clone(), store, paths.clone()),
             java: JavaProvisioner::new(fetcher.clone(), paths.clone()),
             instances: Instances::new(paths.clone()),
-            accounts: AccountStore::with_keyring(paths.cache().join("accounts.json")),
+            accounts: AccountStore::with_fallback(paths.cache().join("accounts.json")),
             authenticator,
             sessions: Mutex::new(HashMap::new()),
             pending_logins: Mutex::new(HashMap::new()),

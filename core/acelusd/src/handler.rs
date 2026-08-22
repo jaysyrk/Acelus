@@ -479,7 +479,12 @@ impl Rpc {
             })
             .collect();
 
-        Ok(json!({"active": registry.active, "accounts": accounts}))
+        let backing = match self.daemon.accounts.backing() {
+            acelus_auth::store::SecretBacking::Keyring => "keyring",
+            acelus_auth::store::SecretBacking::File => "file",
+        };
+
+        Ok(json!({"active": registry.active, "accounts": accounts, "credentialStore": backing}))
     }
 
     fn account_select(&self, request: UuidParams) -> Result<Value, RpcError> {

@@ -86,6 +86,107 @@ impl SecretStore for MemorySecrets {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SecretBacking {
+    Keyring,
+    File,
+}
+
+pub struct FileSecrets {
+    path: PathBuf,
+}
+
+impl FileSecrets {
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self { path: path.into() }
+    }
+
+    fn read(&self) -> Result<HashMap<String, String>> {
+        match std::fs::read(&self.path) {
+            Ok(bytes) => serde_json::from_slice(&bytes).map_err(|source| Error::Corrupt {
+                path: self.path.clone(),
+                source,
+            }),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(HashMap::new()),
+            Err(source) => Err(Error::Io {
+                path: self.path.clone(),
+                source,
+            }),
+        }
+    }
+
+    fn write(&self, entries: &HashMap<String, String>) -> Result<()> {
+        if let Some(parent) = self.path.parent() {
+            std::fs::create_dir_all(parent).map_err(|source| Error::Io {
+                path: parent.to_path_buf(),
+                source,
+            })?;
+        }
+
+        let json = serde_json::to_vec_pretty(entries).map_err(|source| Error::Corrupt {
+            path: self.path.clone(),
+            source,
+        })?;
+
+        std::fs::write(&self.path, json).map_err(|source| Error::Io {
+            path: self.path.clone(),
+            source,
+        })?;
+
+        restrict(&self.path)
+    }
+}
+
+#[cfg(unix)]
+fn restrict(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)).map_err(|source| {
+        Error::Io {
+            path: path.to_path_buf(),
+            source,
+        }
+    })
+}
+
+#[cfg(not(unix))]
+fn restrict(_path: &Path) -> Result<()> {
+    Ok(())
+}
+
+impl SecretStore for FileSecrets {
+    fn get(&self, key: &str) -> Result<Option<Secret>> {
+        Ok(self
+            .read()?
+            .get(key)
+            .map(|value| Secret::new(value.clone())))
+    }
+
+    fn set(&self, key: &str, value: &Secret) -> Result<()> {
+        let mut entries = self.read()?;
+        entries.insert(key.to_string(), value.expose().to_string());
+        self.write(&entries)
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        let mut entries = self.read()?;
+        entries.remove(key);
+        self.write(&entries)
+    }
+}
+
+pub fn usable(store: &dyn SecretStore) -> bool {
+    const PROBE: &str = "acelus.probe";
+
+    if store.set(PROBE, &Secret::new("probe")).is_err() {
+        return false;
+    }
+
+    let readable = matches!(store.get(PROBE), Ok(Some(_)));
+    let _ = store.delete(PROBE);
+    readable
+}
+
 pub struct KeyringSecrets {
     service: String,
 }
@@ -184,6 +285,7 @@ impl Registry {
 }
 
 pub struct AccountStore {
+    backing: SecretBacking,
     path: PathBuf,
     secrets: Box<dyn SecretStore>,
 }
@@ -191,8 +293,37 @@ pub struct AccountStore {
 impl AccountStore {
     pub fn new(path: impl Into<PathBuf>, secrets: Box<dyn SecretStore>) -> Self {
         Self {
+            backing: SecretBacking::Keyring,
             path: path.into(),
             secrets,
+        }
+    }
+
+    pub fn backing(&self) -> SecretBacking {
+        self.backing
+    }
+
+    pub fn with_fallback(path: impl Into<PathBuf>) -> Self {
+        let path = path.into();
+        let keyring = KeyringSecrets::default();
+
+        if usable(&keyring) {
+            return Self {
+                path,
+                secrets: Box::new(keyring),
+                backing: SecretBacking::Keyring,
+            };
+        }
+
+        let beside = path
+            .parent()
+            .map(|parent| parent.join("credentials.json"))
+            .unwrap_or_else(|| PathBuf::from("credentials.json"));
+
+        Self {
+            path,
+            secrets: Box::new(FileSecrets::new(beside)),
+            backing: SecretBacking::File,
         }
     }
 

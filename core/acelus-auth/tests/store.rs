@@ -1,5 +1,5 @@
 use acelus_auth::store::{
-    AccountStore, Error, MemorySecrets, SecretStore, StoredAccount, REFRESH_TOKEN_KEY,
+    AccountStore, Error, FileSecrets, MemorySecrets, SecretStore, StoredAccount, REFRESH_TOKEN_KEY,
     SESSION_TOKEN_KEY,
 };
 use acelus_auth::{Account, Secret};
@@ -268,4 +268,56 @@ fn a_sign_in_that_stopped_short_is_kept_so_it_can_be_retried() {
 
     store.forget_pending().unwrap();
     assert!(store.pending().unwrap().is_none());
+}
+
+#[test]
+fn a_file_backed_store_keeps_secrets_out_of_the_registry_and_off_other_users() {
+    let dir = tempfile::tempdir().unwrap();
+    let credentials = dir.path().join("credentials.json");
+    let store = AccountStore::new(
+        dir.path().join("accounts.json"),
+        Box::new(FileSecrets::new(&credentials)),
+    );
+
+    store.remember(&account("uuid-a", "Player"), NOW).unwrap();
+
+    let registry = std::fs::read_to_string(dir.path().join("accounts.json")).unwrap();
+    assert!(
+        !registry.contains("Player-refresh-token") && !registry.contains("Player-session-token"),
+        "the registry must never carry credentials, whichever store holds them"
+    );
+
+    assert_eq!(
+        store
+            .refresh_token("uuid-a")
+            .unwrap()
+            .map(|held| held.expose().to_string()),
+        Some("Player-refresh-token".to_string())
+    );
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = std::fs::metadata(&credentials)
+            .unwrap()
+            .permissions()
+            .mode();
+        assert_eq!(
+            mode & 0o777,
+            0o600,
+            "a credentials file has to be unreadable by anyone else on the machine"
+        );
+    }
+}
+
+#[test]
+fn a_store_that_cannot_be_written_is_not_treated_as_usable() {
+    let dir = tempfile::tempdir().unwrap();
+    let unwritable = dir.path().join("nope").join("deeper");
+    std::fs::create_dir_all(&unwritable).unwrap();
+
+    assert!(acelus_auth::store::usable(&FileSecrets::new(
+        unwritable.join("credentials.json")
+    )));
+    assert!(acelus_auth::store::usable(&MemorySecrets::new()));
 }
