@@ -128,6 +128,21 @@
       },
       "result": { "type": "object", "required": ["instance"], "properties": { "instance": { "$ref": "#/$defs/instance" }, "copiedBytes": { "type": "integer" } } }
     },
+    "instance.configure": {
+      "description": "Change how an instance runs. Only the fields given are touched.",
+      "params": {
+        "type": "object",
+        "required": ["id"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "memoryMegabytes": { "type": "integer" },
+          "jvmArguments": { "type": "array", "items": { "type": "string" } },
+          "dropJvmArgumentsContaining": { "description": "Remove every JVM argument containing this text. For undoing a flag the runtime rejects.", "type": "string" }
+        }
+      },
+      "result": { "type": "object", "required": ["instance"], "properties": { "instance": { "$ref": "#/$defs/instance" } } }
+    },
     "instance.list": {
       "params": { "type": "object", "additionalProperties": false, "properties": {} },
       "result": { "type": "object", "required": ["instances"], "properties": { "instances": { "type": "array", "items": { "$ref": "#/$defs/instance" } } } }

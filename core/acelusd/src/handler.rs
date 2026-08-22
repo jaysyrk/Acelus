@@ -130,6 +130,18 @@ struct LaunchParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ConfigureParams {
+    id: String,
+    #[serde(default)]
+    memory_megabytes: Option<u32>,
+    #[serde(default)]
+    jvm_arguments: Option<Vec<String>>,
+    #[serde(default)]
+    drop_jvm_arguments_containing: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SessionParams {
     session_id: String,
 }
@@ -161,6 +173,7 @@ impl Handler for Rpc {
             "launch.status" => self.launch_status().await,
             "launch.stop" => self.launch_stop(params(params_value)?).await,
             "log.tail" => self.log_tail(params(params_value)?).await,
+            "instance.configure" => self.instance_configure(params(params_value)?),
             other => Err(RpcError::method_not_found(other)),
         }
     }
@@ -350,6 +363,27 @@ impl Rpc {
         }))
     }
 
+    fn instance_configure(&self, request: ConfigureParams) -> Result<Value, RpcError> {
+        let mut descriptor = self.daemon.instances.get(&request.id).map_err(not_found)?;
+
+        if let Some(memory) = request.memory_megabytes {
+            descriptor.memory_megabytes = Some(memory);
+        }
+
+        if let Some(arguments) = request.jvm_arguments {
+            descriptor.extra_jvm_arguments = arguments;
+        }
+
+        if let Some(needle) = request.drop_jvm_arguments_containing {
+            descriptor
+                .extra_jvm_arguments
+                .retain(|argument| !argument.contains(&needle));
+        }
+
+        self.daemon.instances.save(&descriptor).map_err(internal)?;
+        Ok(json!({ "instance": self.describe(&descriptor) }))
+    }
+
     fn instance_list(&self) -> Result<Value, RpcError> {
         let instances: Vec<Value> = self
             .daemon
@@ -379,6 +413,8 @@ impl Rpc {
             "version": descriptor.version,
             "path": layout.root().display().to_string(),
             "loader": descriptor.loader,
+            "memoryMegabytes": descriptor.memory_megabytes,
+            "jvmArguments": descriptor.extra_jvm_arguments,
             "installed": layout.lockfile().is_file(),
             "lastPlayed": descriptor.last_played,
             "contentSize": read_lockfile(&layout).ok().map(|lockfile| lockfile.total_size()),
@@ -726,7 +762,13 @@ impl Rpc {
             })
             .collect();
 
-        Ok(json!({"lines": lines}))
+        let text: Vec<String> = lines
+            .iter()
+            .filter_map(|line| line.get("line").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect();
+
+        Ok(json!({"lines": lines, "diagnosis": acelus_diag::diagnose(&text)}))
     }
 }
 

@@ -12,6 +12,12 @@ interface LogLine {
   line: string;
 }
 
+interface Diagnosis {
+  title: string;
+  detail: string;
+  remedy: { kind: string; containing?: string; megabytes?: number };
+}
+
 const POLL_MS = 800;
 
 let timer: number | null = null;
@@ -78,8 +84,53 @@ export async function renderConsole(toolbar: HTMLElement, root: HTMLElement): Pr
     ),
   );
 
+  const advice = h("div", {});
+  root.appendChild(advice);
+
   const pane = h("div", { class: "console" });
   root.appendChild(pane);
+
+  let shown = "";
+  const explainProblem = (found: Diagnosis | null) => {
+    if (!found) {
+      clear(advice);
+      shown = "";
+      return;
+    }
+    if (found.title === shown) return;
+    shown = found.title;
+
+    clear(advice);
+    const note = h("div", { class: "note bad", style: "margin:12px" }, h("strong", {}, found.title), found.detail);
+
+    if (found.remedy.kind === "removeJvmArgument" && found.remedy.containing) {
+      note.appendChild(
+        h(
+          "div",
+          { style: "margin-top:10px" },
+          h(
+            "button",
+            {
+              class: "btn accent",
+              onclick: async (event: Event) => {
+                (event.currentTarget as HTMLButtonElement).disabled = true;
+                await rpc("instance.configure", {
+                  id: session.instanceId,
+                  dropJvmArgumentsContaining: found.remedy.containing,
+                });
+                await rpc("launch.stop", { sessionId: session.sessionId });
+                await rpc("launch.start", { id: session.instanceId });
+                reload();
+              },
+            },
+            `Remove it and start again`,
+          ),
+        ),
+      );
+    }
+
+    advice.appendChild(note);
+  };
 
   const draw = (lines: LogLine[]) => {
     const pinned = root.scrollHeight - root.scrollTop - root.clientHeight < 60;
@@ -93,10 +144,11 @@ export async function renderConsole(toolbar: HTMLElement, root: HTMLElement): Pr
 
   const poll = async () => {
     try {
-      const tail = await rpc<{ lines: LogLine[] }>("log.tail", {
+      const tail = await rpc<{ lines: LogLine[]; diagnosis: Diagnosis | null }>("log.tail", {
         sessionId: session.sessionId,
       });
       draw(tail.lines ?? []);
+      explainProblem(tail.diagnosis ?? null);
     } catch {
       stopWatching();
       reload();
