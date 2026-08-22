@@ -119,18 +119,22 @@ cargo build --release
 (cd cli && go build -o ../target/release/acelus ./cmd/acelus)
 ```
 
-The desktop application builds separately, because it needs its own toolchain and bundles the
-daemon beside itself:
+To install the desktop application from source, so it appears in your applications menu and runs
+without a terminal:
 
 ```
-cd ui && npm install
-npm run tauri dev
-npm run tauri build
+tools/install.sh
 ```
 
-On Linux that also needs `webkit2gtk` and `gtk3` development packages. Set
-`ACELUS_DEFAULT_CLIENT_ID` when building if you are distributing to people who should never see
-an Azure portal; see [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md).
+That builds everything and installs into `~/.local`. `PREFIX=/usr/local sudo tools/install.sh`
+installs it system wide instead.
+
+For working on it, `cd ui && npm run tauri dev` runs it against a live dev server, which is why
+that one keeps a terminal busy.
+
+On Linux both need `webkit2gtk` and `gtk3` development packages. Set `ACELUS_DEFAULT_CLIENT_ID`
+when building if you are distributing to people who should never see an Azure portal; see
+[docs/AZURE_SETUP.md](docs/AZURE_SETUP.md).
 
 That leaves `acelus` and `acelusd` side by side in `target/release`. The client starts the
 daemon itself, looking beside its own binary before falling back to PATH, so putting that one
