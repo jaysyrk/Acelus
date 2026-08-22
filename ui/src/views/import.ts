@@ -1,5 +1,5 @@
-import { explain, rpc } from "../api";
-import { clear, h, icons, svg } from "../dom";
+import { explain, onDaemonEvent, rpc } from "../api";
+import { bytes, clear, h, icons, svg } from "../dom";
 
 interface Foreign {
   path: string;
@@ -94,11 +94,19 @@ function row(one: Foreign, onImported: () => void): HTMLElement {
             button.disabled = true;
             status.textContent = "copying";
 
+            const stop = onDaemonEvent((event) => {
+              if (event.method !== "import.progress") return;
+              const files = Number(event.params["copiedFiles"] ?? 0);
+              const copied = Number(event.params["copiedBytes"] ?? 0);
+              status.textContent = `${files} files, ${bytes(copied)}`;
+            });
+
             try {
               const done = await rpc<{ instance: { id: string }; copiedBytes: number }>(
                 "import.run",
                 { path: one.path },
               );
+              stop();
               status.textContent = "installing";
               onImported();
               await rpc("install.run", { id: done.instance.id });
@@ -106,6 +114,7 @@ function row(one: Foreign, onImported: () => void): HTMLElement {
               button.replaceWith(h("span", { class: "pill on" }, "imported"));
               onImported();
             } catch (error) {
+              stop();
               button.disabled = false;
               status.textContent = "";
               (button.parentElement ?? document.body).appendChild(failure(error));

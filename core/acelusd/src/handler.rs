@@ -148,7 +148,7 @@ impl Handler for Rpc {
             "loader.list" => self.loader_list(params(params_value)?).await,
             "instance.create" => self.instance_create(params(params_value)?),
             "import.scan" => self.import_scan(),
-            "import.run" => self.import_run(params(params_value)?),
+            "import.run" => self.import_run(params(params_value)?, notifier).await,
             "instance.list" => self.instance_list(),
             "instance.delete" => self.instance_delete(params(params_value)?),
             "install.run" => self.install_run(params(params_value)?, notifier).await,
@@ -285,7 +285,11 @@ impl Rpc {
         Ok(json!({ "found": found }))
     }
 
-    fn import_run(&self, request: ImportParams) -> Result<Value, RpcError> {
+    async fn import_run(
+        &self,
+        request: ImportParams,
+        notifier: &Notifier,
+    ) -> Result<Value, RpcError> {
         let source = std::path::PathBuf::from(&request.path);
         let foreign = acelus_instance::import::read(&source)
             .map_err(|error| RpcError::new(codes::NOT_FOUND, error.to_string()))?;
@@ -314,8 +318,31 @@ impl Rpc {
         self.daemon.instances.save(&descriptor).map_err(internal)?;
 
         let layout = self.daemon.instances.layout(&descriptor.id);
-        let copied = acelus_instance::import::carry_over(&foreign.game_dir, &layout.game_dir())
-            .map_err(internal)?;
+        let job = descriptor.id.clone();
+        let report = |carried: acelus_instance::import::Carried| {
+            notifier.notify(
+                "import.progress",
+                json!({
+                    "jobId": job,
+                    "copiedFiles": carried.files,
+                    "copiedBytes": carried.bytes,
+                }),
+            );
+        };
+
+        let copied = match acelus_instance::import::carry_over_reporting(
+            &foreign.game_dir,
+            &layout.game_dir(),
+            &report,
+        ) {
+            Ok(carried) => carried.bytes,
+            Err(error) => {
+                let _ = self.daemon.instances.delete(&descriptor.id, false);
+                return Err(RpcError::internal(format!(
+                    "copying your files failed, so nothing was left half imported: {error}"
+                )));
+            }
+        };
 
         Ok(json!({
             "instance": self.describe(&descriptor),

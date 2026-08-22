@@ -188,10 +188,20 @@ fn split_arguments(value: &str) -> Vec<String> {
         .collect()
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Carried {
+    pub files: u64,
+    pub bytes: u64,
+}
+
 pub fn carry_over(from: &Path, into: &Path) -> Result<u64> {
+    carry_over_reporting(from, into, &|_| {}).map(|carried| carried.bytes)
+}
+
+pub fn carry_over_reporting(from: &Path, into: &Path, report: &dyn Fn(Carried)) -> Result<Carried> {
     let entries = match std::fs::read_dir(from) {
         Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Carried::default()),
         Err(source) => {
             return Err(Error::Io {
                 path: from.to_path_buf(),
@@ -205,26 +215,32 @@ pub fn carry_over(from: &Path, into: &Path) -> Result<u64> {
         source,
     })?;
 
-    let mut copied = 0;
+    let mut carried = Carried::default();
     for entry in entries.flatten() {
         let name = entry.file_name();
         if MANAGED.contains(&name.to_string_lossy().as_ref()) {
             continue;
         }
-        copied += copy_tree(&entry.path(), &into.join(&name))?;
+        copy_tree(&entry.path(), &into.join(&name), &mut carried, report)?;
     }
 
-    Ok(copied)
+    report(carried);
+    Ok(carried)
 }
 
-fn copy_tree(from: &Path, into: &Path) -> Result<u64> {
+fn copy_tree(
+    from: &Path,
+    into: &Path,
+    carried: &mut Carried,
+    report: &dyn Fn(Carried),
+) -> Result<()> {
     let metadata = std::fs::symlink_metadata(from).map_err(|source| Error::Io {
         path: from.to_path_buf(),
         source,
     })?;
 
     if metadata.is_symlink() {
-        return Ok(0);
+        return Ok(());
     }
 
     if metadata.is_file() {
@@ -241,11 +257,17 @@ fn copy_tree(from: &Path, into: &Path) -> Result<u64> {
                 source,
             })?;
         }
-        return Ok(metadata.len());
+
+        carried.files += 1;
+        carried.bytes += metadata.len();
+        if carried.files % 200 == 0 {
+            report(*carried);
+        }
+        return Ok(());
     }
 
     if !metadata.is_dir() {
-        return Ok(0);
+        return Ok(());
     }
 
     std::fs::create_dir_all(into).map_err(|source| Error::Io {
@@ -258,11 +280,15 @@ fn copy_tree(from: &Path, into: &Path) -> Result<u64> {
         source,
     })?;
 
-    let mut copied = 0;
     for entry in entries.flatten() {
-        copied += copy_tree(&entry.path(), &into.join(entry.file_name()))?;
+        copy_tree(
+            &entry.path(),
+            &into.join(entry.file_name()),
+            carried,
+            report,
+        )?;
     }
-    Ok(copied)
+    Ok(())
 }
 
 #[derive(Debug, serde::Deserialize)]

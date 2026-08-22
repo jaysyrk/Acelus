@@ -223,6 +223,18 @@
         }
       }
     },
+    "import.progress": {
+      "description": "Sent while an instance is being copied from another launcher, so a long copy does not look frozen.",
+      "params": {
+        "type": "object",
+        "required": ["jobId", "copiedFiles", "copiedBytes"],
+        "properties": {
+          "jobId": { "type": "string" },
+          "copiedFiles": { "type": "integer" },
+          "copiedBytes": { "type": "integer" }
+        }
+      }
+    },
     "install.progress": {
       "params": {
         "type": "object",

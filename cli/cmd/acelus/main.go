@@ -25,7 +25,7 @@ usage:
   acelus create <name> <version> [--fabric[=version]] [--quilt[=version]]
                                      create an instance
   acelus instances                   list instances
-  acelus import [name]               bring instances over from Prism or MultiMC
+  acelus import [name] [as-name]     bring instances over from Prism or MultiMC
   acelus install <instance>          download and verify everything it needs
   acelus verify <instance>           check an installed instance against its lockfile
   acelus launch <instance>           start the game
@@ -337,6 +337,10 @@ func importInstances(client *rpc.Client, args []string) error {
 	if len(args) > 0 {
 		wanted = args[0]
 	}
+	renameTo := ""
+	if len(args) > 1 {
+		renameTo = args[1]
+	}
 
 	if wanted == "" {
 		writer := table()
@@ -371,7 +375,11 @@ func importInstances(client *rpc.Client, args []string) error {
 			} `json:"instance"`
 			CopiedBytes int64 `json:"copiedBytes"`
 		}
-		if err := client.Call("import.run", map[string]any{"path": one.Path}, &done); err != nil {
+		params := map[string]any{"path": one.Path}
+		if renameTo != "" {
+			params["name"] = renameTo
+		}
+		if err := client.Call("import.run", params, &done); err != nil {
 			return err
 		}
 
@@ -381,7 +389,12 @@ func importInstances(client *rpc.Client, args []string) error {
 		return nil
 	}
 
-	return fmt.Errorf("no instance named %q was found to import", wanted)
+	names := make([]string, 0, len(found.Found))
+	for _, one := range found.Found {
+		names = append(names, one.Name)
+	}
+	return fmt.Errorf("no other launcher has an instance named %q; found: %s",
+		wanted, strings.Join(names, ", "))
 }
 
 func instances(client *rpc.Client) error {
