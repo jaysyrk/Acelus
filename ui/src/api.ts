@@ -32,6 +32,7 @@ export const codes = {
   entitlementSignatureInvalid: -32018,
   azureAppUnapproved: -32019,
   azureAppMissing: -32020,
+  credentialStoreUnavailable: -32021,
   notFound: -32001,
   alreadyExists: -32002,
   network: -32003,
@@ -158,6 +159,12 @@ function toRpcError(raw: unknown): RpcError {
 export function explain(error: unknown): { title: string; detail: string; link?: string } {
   const failure = toRpcError(error);
   switch (failure.code) {
+    case codes.credentialStoreUnavailable:
+      return {
+        title: "Signed in, but the account could not be saved",
+        detail:
+          "Acelus keeps your sign in in the system keyring, and it could not be written. On Linux that usually means no keyring service is running or it is locked. The sign in itself worked.",
+      };
     case codes.azureAppMissing:
       return {
         title: "This copy of Acelus cannot sign in yet",

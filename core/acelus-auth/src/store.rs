@@ -11,6 +11,7 @@ use crate::secret::Secret;
 pub const KEYRING_SERVICE: &str = "acelus";
 pub const REFRESH_TOKEN_KEY: &str = "refresh";
 pub const SESSION_TOKEN_KEY: &str = "session";
+pub const PENDING_KEY: &str = "pending.refresh";
 pub const REFRESH_MARGIN_SECONDS: u64 = 300;
 
 #[derive(Debug, thiserror::Error)]
@@ -273,6 +274,18 @@ impl AccountStore {
 
     pub fn session_token(&self, uuid: &str) -> Result<Option<Secret>> {
         self.secrets.get(&key(uuid, SESSION_TOKEN_KEY))
+    }
+
+    pub fn remember_pending(&self, refresh: &Secret) -> Result<()> {
+        self.secrets.set(PENDING_KEY, refresh)
+    }
+
+    pub fn pending(&self) -> Result<Option<Secret>> {
+        self.secrets.get(PENDING_KEY)
+    }
+
+    pub fn forget_pending(&self) -> Result<()> {
+        self.secrets.delete(PENDING_KEY)
     }
 
     pub fn set_active(&self, uuid: &str) -> Result<()> {

@@ -36,6 +36,10 @@ fn every_code_the_schema_declares_exists_in_the_implementation() {
         ),
         (codes::AZURE_APP_UNAPPROVED, "AZURE_APP_UNAPPROVED"),
         (codes::AZURE_APP_MISSING, "AZURE_APP_MISSING"),
+        (
+            codes::CREDENTIAL_STORE_UNAVAILABLE,
+            "CREDENTIAL_STORE_UNAVAILABLE",
+        ),
         (codes::JAVA_UNAVAILABLE, "JAVA_UNAVAILABLE"),
         (codes::LOADER_UNSUPPORTED, "LOADER_UNSUPPORTED"),
         (codes::DEPENDENCY_CONFLICT, "DEPENDENCY_CONFLICT"),

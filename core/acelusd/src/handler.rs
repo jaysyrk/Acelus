@@ -422,20 +422,31 @@ impl Rpc {
             daemon.pending_logins.lock().await.remove(&waiting_job);
 
             match outcome {
-                Ok(account) => {
-                    let stored = daemon.accounts.remember(&account, now_seconds());
-                    notifier.notify(
+                Ok(account) => match daemon.accounts.remember(&account, now_seconds()) {
+                    Ok(stored) => notifier.notify(
                         "account.loginComplete",
                         json!({
                             "jobId": waiting_job,
-                            "account": stored.ok().map(|stored| json!({
+                            "account": {
                                 "uuid": stored.uuid,
                                 "name": stored.name,
                                 "entitlementVerified": stored.entitlement_verified,
-                            })),
+                            },
                         }),
-                    );
-                }
+                    ),
+                    Err(error) => notifier.notify(
+                        "account.loginComplete",
+                        json!({
+                            "jobId": waiting_job,
+                            "error": {
+                                "code": codes::CREDENTIAL_STORE_UNAVAILABLE,
+                                "message": format!(
+                                    "signing in worked, but the account could not be saved: {error}"
+                                ),
+                            },
+                        }),
+                    ),
+                },
                 Err(error) => notifier.notify(
                     "account.loginComplete",
                     json!({

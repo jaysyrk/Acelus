@@ -245,3 +245,27 @@ fn a_stored_account_reports_when_its_session_must_be_renewed() {
     assert!(stored.needs_refresh(NOW + 86400));
     assert!(stored.is_expired(NOW + 86400));
 }
+
+#[test]
+fn a_sign_in_that_stopped_short_is_kept_so_it_can_be_retried() {
+    let dir = tempfile::tempdir().unwrap();
+    let store = store(&dir);
+
+    assert!(store.pending().unwrap().is_none());
+
+    store
+        .remember_pending(&Secret::new("microsoft-refresh-token"))
+        .unwrap();
+
+    assert_eq!(
+        store
+            .pending()
+            .unwrap()
+            .map(|held| held.expose().to_string()),
+        Some("microsoft-refresh-token".to_string()),
+        "a sign in that reached Microsoft but not Mojang must be resumable without a new code"
+    );
+
+    store.forget_pending().unwrap();
+    assert!(store.pending().unwrap().is_none());
+}
