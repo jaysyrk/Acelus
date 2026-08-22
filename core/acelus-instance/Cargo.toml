@@ -12,6 +12,7 @@ acelus-cas.workspace = true
 acelus-net.workspace = true
 dirs.workspace = true
 url.workspace = true
+reflink-copy.workspace = true
 zip.workspace = true
 futures.workspace = true
 acelus-meta.workspace = true
@@ -32,5 +33,6 @@ hex.workspace = true
 acelus-meta.workspace = true
 acelus-net.workspace = true
 acelus-cas.workspace = true
+reflink-copy.workspace = true
 zip.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs", "io-util", "time"] }

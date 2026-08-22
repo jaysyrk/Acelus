@@ -80,6 +80,24 @@
       },
       "result": { "type": "object", "required": ["instance"], "properties": { "instance": { "$ref": "#/$defs/instance" } } }
     },
+    "import.scan": {
+      "description": "Find instances belonging to Prism, PolyMC or MultiMC. Reads only; nothing is changed.",
+      "params": { "type": "object", "additionalProperties": false, "properties": {} },
+      "result": { "type": "object", "required": ["found"], "properties": { "found": { "type": "array", "items": { "$ref": "#/$defs/foreignInstance" } } } }
+    },
+    "import.run": {
+      "description": "Copy one of those instances into Acelus. The original is left exactly as it was.",
+      "params": {
+        "type": "object",
+        "required": ["path"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string" },
+          "name": { "description": "Override the imported name, for when one already exists.", "type": "string" }
+        }
+      },
+      "result": { "type": "object", "required": ["instance"], "properties": { "instance": { "$ref": "#/$defs/instance" }, "copiedBytes": { "type": "integer" } } }
+    },
     "instance.list": {
       "params": { "type": "object", "additionalProperties": false, "properties": {} },
       "result": { "type": "object", "required": ["instances"], "properties": { "instances": { "type": "array", "items": { "$ref": "#/$defs/instance" } } } }
@@ -278,6 +296,19 @@
       "properties": {
         "kind": { "enum": ["fabric", "quilt"] },
         "version": { "description": "Omit to take the latest stable build for the target Minecraft version.", "type": "string" }
+      }
+    },
+    "foreignInstance": {
+      "description": "An instance found in another launcher.",
+      "type": "object",
+      "required": ["path", "name", "version"],
+      "properties": {
+        "path": { "type": "string" },
+        "name": { "type": "string" },
+        "version": { "type": "string" },
+        "loader": { "$ref": "#/$defs/loaderSpec" },
+        "blockedBy": { "description": "Names the mod loader that stops this one being imported, when there is one.", "type": "string" },
+        "memoryMegabytes": { "type": "integer" }
       }
     },
     "instance": {

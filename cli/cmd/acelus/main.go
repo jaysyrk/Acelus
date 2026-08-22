@@ -25,6 +25,7 @@ usage:
   acelus create <name> <version> [--fabric[=version]] [--quilt[=version]]
                                      create an instance
   acelus instances                   list instances
+  acelus import [name]               bring instances over from Prism or MultiMC
   acelus install <instance>          download and verify everything it needs
   acelus verify <instance>           check an installed instance against its lockfile
   acelus launch <instance>           start the game
@@ -75,6 +76,8 @@ func run(command string, args []string) error {
 		return versions(client, args)
 	case "create":
 		return create(client, args)
+	case "import":
+		return importInstances(client, args)
 	case "instances":
 		return instances(client)
 	case "install":
@@ -304,6 +307,81 @@ func create(client *rpc.Client, args []string) error {
 	fmt.Printf("Created %s at %s\n", created.Instance.ID, created.Instance.Path)
 	fmt.Printf("Next: acelus install %s\n", created.Instance.ID)
 	return nil
+}
+
+type foreignInstance struct {
+	Path      string `json:"path"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	BlockedBy string `json:"blockedBy"`
+	Loader    *struct {
+		Kind    string `json:"kind"`
+		Version string `json:"version"`
+	} `json:"loader"`
+}
+
+func importInstances(client *rpc.Client, args []string) error {
+	var found struct {
+		Found []foreignInstance `json:"found"`
+	}
+	if err := client.Call("import.scan", nil, &found); err != nil {
+		return err
+	}
+
+	if len(found.Found) == 0 {
+		fmt.Println("No Prism, PolyMC or MultiMC instances found.")
+		return nil
+	}
+
+	wanted := ""
+	if len(args) > 0 {
+		wanted = args[0]
+	}
+
+	if wanted == "" {
+		writer := table()
+		fmt.Fprintln(writer, "INSTANCE\tVERSION\tLOADER\tSTATE")
+		for _, one := range found.Found {
+			loader := "vanilla"
+			if one.Loader != nil {
+				loader = one.Loader.Kind + " " + one.Loader.Version
+			}
+			state := "ready"
+			if one.BlockedBy != "" {
+				state = one.BlockedBy + " is not supported yet"
+			}
+			fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", one.Name, one.Version, loader, state)
+		}
+		if err := writer.Flush(); err != nil {
+			return err
+		}
+		fmt.Println("\nRun: acelus import <instance>")
+		return nil
+	}
+
+	for _, one := range found.Found {
+		if !strings.EqualFold(one.Name, wanted) {
+			continue
+		}
+
+		var done struct {
+			Instance struct {
+				ID   string `json:"id"`
+				Path string `json:"path"`
+			} `json:"instance"`
+			CopiedBytes int64 `json:"copiedBytes"`
+		}
+		if err := client.Call("import.run", map[string]any{"path": one.Path}, &done); err != nil {
+			return err
+		}
+
+		fmt.Printf("Imported %s to %s (%s of your files)\n",
+			one.Name, done.Instance.Path, humanBytes(done.CopiedBytes))
+		fmt.Printf("Your Prism copy is untouched.\nNext: acelus install %s\n", done.Instance.ID)
+		return nil
+	}
+
+	return fmt.Errorf("no instance named %q was found to import", wanted)
 }
 
 func instances(client *rpc.Client) error {

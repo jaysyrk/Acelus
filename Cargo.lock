@@ -71,6 +71,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonschema",
+ "reflink-copy",
  "serde",
  "serde_json",
  "sha1",

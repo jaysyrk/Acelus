@@ -1,5 +1,6 @@
 pub mod descriptor;
 pub mod extract;
+pub mod import;
 pub mod install;
 pub mod java;
 pub mod loader;
@@ -9,6 +10,7 @@ pub mod plan;
 pub mod resolve;
 
 pub use descriptor::{Descriptor, Instances};
+pub use import::Foreign;
 pub use install::{Installer, Phase, Progress};
 pub use java::{InstalledRuntime, JavaProvisioner};
 pub use loader::{LoaderRequest, LoaderResolver};

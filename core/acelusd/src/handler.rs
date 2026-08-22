@@ -94,6 +94,14 @@ struct CreateParams {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ImportParams {
+    path: String,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct IdParams {
     id: String,
 }
@@ -139,6 +147,8 @@ impl Handler for Rpc {
             "version.list" => self.version_list(params(params_value)?).await,
             "loader.list" => self.loader_list(params(params_value)?).await,
             "instance.create" => self.instance_create(params(params_value)?),
+            "import.scan" => self.import_scan(),
+            "import.run" => self.import_run(params(params_value)?),
             "instance.list" => self.instance_list(),
             "instance.delete" => self.instance_delete(params(params_value)?),
             "install.run" => self.install_run(params(params_value)?, notifier).await,
@@ -250,6 +260,67 @@ impl Rpc {
             })?;
 
         Ok(json!({ "instance": self.describe(&descriptor) }))
+    }
+
+    fn import_scan(&self) -> Result<Value, RpcError> {
+        let Some(home) = dirs::home_dir() else {
+            return Ok(json!({ "found": [] }));
+        };
+
+        let found: Vec<Value> = acelus_instance::import::search_paths(&home)
+            .iter()
+            .flat_map(|root| acelus_instance::import::scan(root))
+            .map(|foreign| {
+                json!({
+                    "path": foreign.path.display().to_string(),
+                    "name": foreign.name,
+                    "version": foreign.version,
+                    "loader": foreign.loader,
+                    "blockedBy": foreign.blocked_by,
+                    "memoryMegabytes": foreign.memory_megabytes,
+                })
+            })
+            .collect();
+
+        Ok(json!({ "found": found }))
+    }
+
+    fn import_run(&self, request: ImportParams) -> Result<Value, RpcError> {
+        let source = std::path::PathBuf::from(&request.path);
+        let foreign = acelus_instance::import::read(&source)
+            .map_err(|error| RpcError::new(codes::NOT_FOUND, error.to_string()))?;
+
+        if let Some(blocker) = foreign.blocked_by {
+            return Err(RpcError::new(
+                codes::LOADER_UNSUPPORTED,
+                format!("Acelus cannot run {blocker} instances yet, so importing one would leave you with something that will not start"),
+            ));
+        }
+
+        let name = request.name.unwrap_or_else(|| foreign.name.clone());
+        let mut descriptor = self
+            .daemon
+            .instances
+            .create(&name, &foreign.version, foreign.loader)
+            .map_err(|error| match error {
+                acelus_instance::descriptor::Error::AlreadyExists { .. } => {
+                    RpcError::new(codes::ALREADY_EXISTS, error.to_string())
+                }
+                other => internal(other),
+            })?;
+
+        descriptor.memory_megabytes = foreign.memory_megabytes;
+        descriptor.extra_jvm_arguments = foreign.jvm_arguments;
+        self.daemon.instances.save(&descriptor).map_err(internal)?;
+
+        let layout = self.daemon.instances.layout(&descriptor.id);
+        let copied = acelus_instance::import::carry_over(&foreign.game_dir, &layout.game_dir())
+            .map_err(internal)?;
+
+        Ok(json!({
+            "instance": self.describe(&descriptor),
+            "copiedBytes": copied,
+        }))
     }
 
     fn instance_list(&self) -> Result<Value, RpcError> {

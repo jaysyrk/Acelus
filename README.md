@@ -28,6 +28,13 @@ acelus login
 acelus launch survival
 ```
 
+Already using Prism, PolyMC or MultiMC? Bring instances across, originals untouched:
+
+```
+acelus import
+acelus import main
+```
+
 For a modded instance, name the loader when creating it. Bare takes the newest build published for
 that Minecraft version; `=` pins one.
 
