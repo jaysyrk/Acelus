@@ -1,6 +1,7 @@
 import { explain, onDaemonEvent, openExternal, rpc } from "../api";
 import { ago, bytes, clear, h, icons, svg } from "../dom";
 import { confirmAction } from "./confirm";
+import { countImportable, openImportSheet } from "./import";
 import { openCreateSheet } from "./create";
 
 interface Loader {
@@ -36,6 +37,7 @@ let ascending = false;
 let filter = "";
 let known: Instance[] = [];
 let accountsReady = true;
+let importable = 0;
 let repaint: (() => void) | null = null;
 let goAccounts: (() => void) | null = null;
 let refresh: (() => void) | null = null;
@@ -98,6 +100,14 @@ export async function renderInstances(
   toolbar.appendChild(search);
   toolbar.appendChild(h("span", { class: "spacer" }));
   toolbar.appendChild(
+    h(
+      "button",
+      { class: "btn", onclick: () => openImportSheet(refetch) },
+      svg(icons.download, 13),
+      "Import",
+    ),
+  );
+  toolbar.appendChild(
     h("button", { class: "btn accent", onclick: () => openCreateSheet(refetch) }, svg(icons.plus, 13), "New"),
   );
 
@@ -115,6 +125,8 @@ export async function renderInstances(
   } catch {
     accountsReady = true;
   }
+
+  importable = known.length === 0 ? await countImportable() : 0;
 
   const paint = () => draw(body, refetch, onLaunched);
   repaint = paint;
@@ -161,6 +173,20 @@ function draw(body: HTMLElement, refetch: () => void, onLaunched: () => void): v
         h("strong", {}, instances.length === 0 ? "No instances" : "Nothing matches that filter"),
         instances.length === 0
           ? "Create one with New, and Acelus downloads and checks everything it needs."
+          : null,
+        instances.length === 0 && importable > 0
+          ? h(
+              "div",
+              { style: "margin-top:16px" },
+              h(
+                "button",
+                { class: "btn accent", onclick: () => openImportSheet(refetch) },
+                svg(icons.download, 13),
+                importable === 1
+                  ? "Bring 1 instance over from Prism"
+                  : `Bring ${importable} instances over from Prism`,
+              ),
+            )
           : null,
       ),
     );

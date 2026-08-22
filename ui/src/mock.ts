@@ -135,6 +135,29 @@ export function mockBackend() {
         case "instance.list":
           return { instances };
 
+        case "import.scan":
+          return {
+            found: [
+              {
+                path: "/home/jaysyrk/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/instances/main",
+                name: "main",
+                version: "1.21.11",
+                loader: { kind: "fabric", version: "0.18.4" },
+                memoryMegabytes: 6144,
+              },
+              {
+                path: "/home/jaysyrk/.local/share/PrismLauncher/instances/atm10",
+                name: "All the Mods 10",
+                version: "1.21.1",
+                loader: null,
+                blockedBy: "NeoForge",
+              },
+            ],
+          };
+
+        case "import.run":
+          return { instance: { id: "main", path: "/home/jaysyrk/.local/share/acelus/instances/main" }, copiedBytes: 2_791_728_742 };
+
         case "instance.create": {
           const name = String(params["name"] ?? "New instance");
           const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
