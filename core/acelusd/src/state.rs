@@ -27,7 +27,7 @@ pub struct Daemon {
     pub instances: Instances,
     pub accounts: AccountStore,
     pub authenticator: Option<Authenticator>,
-    pub sessions: Mutex<HashMap<String, Session>>,
+    pub sessions: Mutex<HashMap<String, (String, Session)>>,
     pub pending_logins: Mutex<HashMap<String, acelus_auth::DeviceCode>>,
 }
 

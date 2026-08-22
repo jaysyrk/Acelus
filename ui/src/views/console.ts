@@ -1,4 +1,4 @@
-import { onDaemonEvent, rpc } from "../api";
+import { rpc } from "../api";
 import { clear, h, icons, svg } from "../dom";
 
 interface Session {
@@ -7,51 +7,56 @@ interface Session {
   pid: number;
 }
 
-const buffers = new Map<string, string[]>();
-const LIMIT = 4000;
+interface LogLine {
+  stream: string;
+  line: string;
+}
 
-export function watchLogs(rerender: () => void): void {
-  onDaemonEvent((event) => {
-    if (event.method === "log.line") {
-      const id = String(event.params["sessionId"] ?? "");
-      const lines = buffers.get(id) ?? [];
-      lines.push(String(event.params["line"] ?? ""));
-      if (lines.length > LIMIT) lines.splice(0, lines.length - LIMIT);
-      buffers.set(id, lines);
-      rerender();
-    }
-    if (event.method === "session.ended") {
-      rerender();
-    }
-  });
+const POLL_MS = 800;
+
+let timer: number | null = null;
+
+export function watchLogs(): void {
+  return;
+}
+
+export function stopWatching(): void {
+  if (timer !== null) {
+    window.clearInterval(timer);
+    timer = null;
+  }
 }
 
 export async function renderConsole(toolbar: HTMLElement, root: HTMLElement): Promise<void> {
-  const reload = () => void renderConsole(toolbar, root);
-  const wasPinned = pinnedToBottom(root);
+  stopWatching();
   clear(toolbar);
   clear(root);
 
+  toolbar.appendChild(h("h1", {}, "Console"));
+
   let sessions: Session[] = [];
   try {
-    const reply = await rpc<{ sessions: Session[] }>("session.list");
-    sessions = reply.sessions ?? [];
+    sessions = (await rpc<{ sessions: Session[] }>("launch.status")).sessions ?? [];
   } catch {
     sessions = [];
   }
 
-  toolbar.appendChild(h("h1", {}, "Console"));
+  const session = sessions[0];
 
-  if (sessions.length === 0) {
+  if (!session) {
     toolbar.appendChild(h("span", { class: "spacer" }));
     root.appendChild(
-      h("div", { class: "blank" }, h("strong", {}, "Nothing running"), "Launch an instance and its output lands here."),
+      h(
+        "div",
+        { class: "blank" },
+        h("strong", {}, "Nothing running"),
+        "Press Play on an instance and its output lands here.",
+      ),
     );
     return;
   }
 
-  const session = sessions[0];
-  if (!session) return;
+  const reload = () => void renderConsole(toolbar, root);
 
   toolbar.appendChild(h("span", { class: "spin" }));
   toolbar.appendChild(h("span", { class: "data" }, session.instanceId));
@@ -61,23 +66,10 @@ export async function renderConsole(toolbar: HTMLElement, root: HTMLElement): Pr
     h(
       "button",
       {
-        class: "btn quiet",
-        onclick: () => {
-          buffers.delete(session.sessionId);
-          reload();
-        },
-      },
-      svg(icons.refresh, 13),
-      "Clear",
-    ),
-  );
-  toolbar.appendChild(
-    h(
-      "button",
-      {
         class: "btn bad",
         onclick: async () => {
-          await rpc("session.stop", { sessionId: session.sessionId });
+          stopWatching();
+          await rpc("launch.stop", { sessionId: session.sessionId });
           reload();
         },
       },
@@ -87,15 +79,30 @@ export async function renderConsole(toolbar: HTMLElement, root: HTMLElement): Pr
   );
 
   const pane = h("div", { class: "console" });
-  for (const line of buffers.get(session.sessionId) ?? []) {
-    pane.appendChild(h("div", { class: /error|exception|caused by/i.test(line) ? "err" : "" }, line));
-  }
   root.appendChild(pane);
 
-  if (wasPinned) root.scrollTop = root.scrollHeight;
-}
+  const draw = (lines: LogLine[]) => {
+    const pinned = root.scrollHeight - root.scrollTop - root.clientHeight < 60;
+    clear(pane);
+    for (const held of lines) {
+      const bad = held.stream === "stderr" || /error|exception|caused by/i.test(held.line);
+      pane.appendChild(h("div", { class: bad ? "err" : "" }, held.line));
+    }
+    if (pinned) root.scrollTop = root.scrollHeight;
+  };
 
-function pinnedToBottom(root: HTMLElement): boolean {
-  if (!root.querySelector(".console")) return true;
-  return root.scrollHeight - root.scrollTop - root.clientHeight < 60;
+  const poll = async () => {
+    try {
+      const tail = await rpc<{ lines: LogLine[] }>("log.tail", {
+        sessionId: session.sessionId,
+      });
+      draw(tail.lines ?? []);
+    } catch {
+      stopWatching();
+      reload();
+    }
+  };
+
+  await poll();
+  timer = window.setInterval(() => void poll(), POLL_MS);
 }

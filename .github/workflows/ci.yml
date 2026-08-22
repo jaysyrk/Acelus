@@ -127,3 +127,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 tools/check_no_comments.py
+
+  rpc-methods:
+    name: clients and daemon agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/check_rpc_methods.py

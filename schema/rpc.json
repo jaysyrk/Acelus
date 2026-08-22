@@ -66,6 +66,36 @@
         "properties": { "versions": { "type": "array", "items": { "$ref": "#/$defs/versionSummary" } } }
       }
     },
+    "loader.list": {
+      "description": "Builds of a mod loader published for one Minecraft version, newest stable first.",
+      "params": {
+        "type": "object",
+        "required": ["kind", "version"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "enum": ["fabric", "quilt"] },
+          "version": { "description": "The Minecraft version the loader must support.", "type": "string" }
+        }
+      },
+      "result": {
+        "type": "object",
+        "required": ["loaders"],
+        "properties": {
+          "loaders": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["version"],
+              "properties": {
+                "version": { "type": "string" },
+                "stable": { "type": "boolean" },
+                "intermediaryVersion": { "type": ["string", "null"] }
+              }
+            }
+          }
+        }
+      }
+    },
     "instance.create": {
       "description": "Create an instance directory and resolve it into a lockfile. Does not download anything; install.run does that.",
       "params": {

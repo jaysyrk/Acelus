@@ -3,7 +3,7 @@ import "./styles.css";
 import { h, icons, svg } from "./dom";
 import { applyTheme, currentTheme, nextTheme, themeLabel, type Theme } from "./theme";
 import { renderAccounts } from "./views/accounts";
-import { renderConsole, watchLogs } from "./views/console";
+import { renderConsole, stopWatching } from "./views/console";
 import { renderInstances, watchInstalls, whenAccountsNeeded } from "./views/instances";
 
 type Route = "instances" | "accounts" | "console";
@@ -42,6 +42,8 @@ function draw(): void {
     else button.removeAttribute("aria-current");
   }
 
+  if (current !== "console") stopWatching();
+
   if (current === "instances") void renderInstances(toolbar, body, go("console"));
   else if (current === "accounts") void renderAccounts(toolbar, body);
   else void renderConsole(toolbar, body);
@@ -55,12 +57,6 @@ function go(route: Route): () => void {
     current = route;
     if (routeFromHash() !== route) location.hash = `#/${route}`;
     draw();
-  };
-}
-
-function redrawIfViewing(route: Route): () => void {
-  return () => {
-    if (current === route) draw();
   };
 }
 
@@ -78,7 +74,7 @@ async function refreshCounts(): Promise<void> {
     setCount("accounts", null);
   }
   try {
-    const sessions = await rpc<{ sessions: unknown[] }>("session.list");
+    const sessions = await rpc<{ sessions: unknown[] }>("launch.status");
     setCount("console", sessions.sessions?.length ?? 0);
   } catch {
     setCount("console", null);
@@ -174,7 +170,6 @@ async function start(): Promise<void> {
 
   watchInstalls();
   whenAccountsNeeded(go("accounts"));
-  watchLogs(redrawIfViewing("console"));
 
   setState(await connect());
   draw();

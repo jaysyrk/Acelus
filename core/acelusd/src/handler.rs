@@ -642,7 +642,7 @@ impl Rpc {
             .sessions
             .lock()
             .await
-            .insert(session.id().to_string(), session);
+            .insert(session.id().to_string(), (descriptor.id.clone(), session));
 
         let mut played = descriptor.clone();
         played.last_played = Some(now_seconds());
@@ -655,7 +655,13 @@ impl Rpc {
         let sessions = self.daemon.sessions.lock().await;
         let running: Vec<Value> = sessions
             .values()
-            .map(|session| json!({"sessionId": session.id(), "pid": session.pid()}))
+            .map(|(instance, session)| {
+                json!({
+                    "sessionId": session.id(),
+                    "instanceId": instance,
+                    "pid": session.pid(),
+                })
+            })
             .collect();
 
         Ok(json!({"sessions": running}))
@@ -667,7 +673,7 @@ impl Rpc {
             .get(&request.session_id)
             .ok_or_else(|| not_found(format!("no session {}", request.session_id)))?;
 
-        session.terminate().map_err(internal)?;
+        session.1.terminate().map_err(internal)?;
         Ok(json!({}))
     }
 
@@ -678,6 +684,7 @@ impl Rpc {
             .ok_or_else(|| not_found(format!("no session {}", request.session_id)))?;
 
         let lines: Vec<Value> = session
+            .1
             .log()
             .snapshot()
             .iter()

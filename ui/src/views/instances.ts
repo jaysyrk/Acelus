@@ -296,7 +296,7 @@ function row(instance: Instance, refetch: () => void, onLaunched: () => void): H
         }
         (event.currentTarget as HTMLButtonElement).disabled = true;
         try {
-          await rpc("launch.run", { id: instance.id });
+          await rpc("launch.start", { id: instance.id });
           onLaunched();
         } catch (error) {
           refetch();

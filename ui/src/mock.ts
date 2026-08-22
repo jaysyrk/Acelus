@@ -97,7 +97,9 @@ async function simulateInstall(id: string): Promise<void> {
   emitDaemonEvent({ method: "install.progress", params: { jobId: id, phase: "done" } });
 }
 
-async function simulateLogs(sessionId: string): Promise<void> {
+const logLines: string[] = [];
+
+async function simulateLogs(_sessionId: string): Promise<void> {
   const lines = [
     "[main/INFO]: Loading Minecraft 1.21.11 with Fabric Loader 0.19.3",
     "[main/INFO]: Loading 4 mods:",
@@ -115,7 +117,7 @@ async function simulateLogs(sessionId: string): Promise<void> {
 
   for (const line of lines) {
     await delay(230);
-    emitDaemonEvent({ method: "log.line", params: { sessionId, line, stream: "stdout" } });
+    logLines.push(line);
   }
 }
 
@@ -219,22 +221,22 @@ export function mockBackend() {
           activeAccount = String(params["uuid"]);
           return {};
 
-        case "launch.run": {
+        case "launch.start": {
           const sessionId = "s-4f21c9";
           running = { sessionId, instanceId: String(params["id"]), pid: 48213, startedAt: Date.now() };
           void simulateLogs(sessionId);
           return running;
         }
 
-        case "session.list":
+        case "launch.status":
           return { sessions: running ? [running] : [] };
 
-        case "session.stop":
+        case "launch.stop":
           running = null;
           return {};
 
         case "log.tail":
-          return { lines: [] };
+          return { lines: logLines.map((line) => ({ stream: "stdout", line })) };
 
         case "verify.run":
           return { ok: true, problems: [] };
