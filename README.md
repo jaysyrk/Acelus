@@ -8,16 +8,18 @@ your crash logs with more respect than the alternatives.
 
 ## Status
 
-Installing works end to end. Acelus resolves a version from Mojang, downloads and verifies every
-file against its published digest, provisions the matching Java runtime, and writes a lockfile.
-Fabric and Quilt instances are resolved from the loaders' own metadata and merged into the same
-lockfile. All of this is measured below on real hardware.
+Acelus works end to end. It resolves a version from Mojang, downloads and verifies every file
+against its published digest, provisions the matching Java runtime, writes a lockfile, signs in
+through Microsoft, Xbox Live and XSTS, checks that the account owns the game against Mojang's
+signing key, and starts it. Fabric and Quilt instances are resolved from the loaders' own metadata
+and merged into the same lockfile.
 
-The sign in chain runs against real Microsoft accounts through OAuth, Xbox Live and XSTS, and
-stops at the last step, where `api.minecraftservices.com` answers **403** until Mojang approves the
-Azure application — see [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md). Launching is gated behind a
-signature-verified entitlement and so waits on that approval; it has not yet run against a real
-account.
+That has been done: signed in with a real Microsoft account, launched 1.21.11 with Fabric, and
+joined an online server. Online play is the part that cannot be faked, because Mojang's session
+servers accept the session or they do not.
+
+Running it against your own account needs an Azure application that Mojang has approved, which is
+not something this repository can ship for you — see [docs/AZURE_SETUP.md](docs/AZURE_SETUP.md).
 
 ```
 acelus create Survival 1.21.11
@@ -164,7 +166,7 @@ graphical client cannot drift apart.
 - **Phase 1** — Microsoft auth, vanilla download and verify, launching from the command line — *done*
 - **Phase 2** — Fabric and Quilt — *done*; NeoForge and Forge; Modrinth and CurseForge; modpack
   import and export
-- **Phase 3** — desktop application
+- **Phase 3** — desktop application — *done*
 - **Phase 4** — crash diagnosis, sandboxing, instance sync
 - **Phase 5** — signed and notarized packages, auto-update
 
